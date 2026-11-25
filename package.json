@@ -1,0 +1,17 @@
+{
+  "name": "smart-civic-pothole-system",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Runs the whole stack for local development.",
+  "scripts": {
+    "dev": "concurrently -k -n ai,api,web -c magenta,blue,green \"npm:dev:ai\" \"npm:dev:api\" \"npm:dev:web\"",
+    "dev:ai": "cd ai-service && venv\\Scripts\\python -m uvicorn app.main:app --port 8000 --reload",
+    "dev:api": "npm --prefix server run dev",
+    "dev:web": "npm --prefix client run dev",
+    "db:reset": "npm --prefix server run db:reset",
+    "sync:notion": "node scripts/sync_to_notion.mjs"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.6"
+  }
+}

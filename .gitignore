@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+ai-service/venv/
+__pycache__/
+*.pyc
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Build output
+client/dist/
+server/dist/
+
+# AI data and weights (too large for git)
+ai-service/datasets/*
+!ai-service/datasets/.gitkeep
+ai-service/weights/*.pt
+ai-service/weights/*.onnx
+ai-service/training/runs/
+
+# Logs / OS / editor
+*.log
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Uploads (local media files)
+uploads/
+server/uploads/
