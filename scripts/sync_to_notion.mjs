@@ -92,19 +92,19 @@ async function updateDatabases() {
   // System Modules
   const modRows = await queryDatabase('441eb160-4714-48cc-8b25-92b84c3329c4');
   const modMap = {
-    'Authentication & User Management': { status: 'Complete', notes: 'JWT, bcryptjs, RBAC middleware active for citizen, government, admin' },
-    'Citizen Portal': { status: 'Complete', notes: 'React 19 + Vite 8 + React Router 7: Dashboard, ReportPothole, CitizenReportDetails' },
-    'Interactive Map': { status: 'Complete', notes: 'Leaflet 1.9 + OpenStreetMap Vadodara live map with status color markers & filters' },
-    'Pothole Reporting': { status: 'Complete', notes: 'Live GPS accuracy check, manual pin fallback; Cloudinary & EXIF queued for Phase 2' },
-    'Live Statistics / Counters': { status: 'Complete', notes: 'GET /api/stats/counters enforcing Total = Active + Solved invariant' },
-    'Problem Management': { status: 'Complete', notes: 'Strict status state machine, 10-table schema, immutable status_history audit trail' },
-    'Government Portal': { status: 'Complete', notes: 'GovDashboard queue tabs + zone map + GovReportDetails transition controls' },
-    'Repair Verification': { status: 'Complete', notes: 'PostGIS ST_Distance (<= 100 m) geo-fence check + Stage 2 verification endpoint' },
-    'Database': { status: 'Complete', notes: 'PostgreSQL 17.11 + PostGIS 3 geography(POINT, 4326) + GIST spatial index' },
-    'AI Verification': { status: 'In Progress', notes: 'FastAPI (:8000) active with heuristic stub (0.60/0.40 gates); YOLO training in Phase 4' },
-    'Security': { status: 'In Progress', notes: 'Parameterized pg SQL, CORS, JWT RBAC active; rate-limiting & upload hardening in Phase 2/5' },
-    'Notifications': { status: 'In Progress', notes: 'notifications table active in PostgreSQL; in-app notification center UI in Phase 2/3' },
-    'Administration': { status: 'In Progress', notes: 'Admin role & audit_logs table active; dedicated Admin Review Queue UI in Phase 3' },
+    'Authentication & User Management': { status: 'Complete', notes: 'JWT (15m) + rotating refresh_tokens (7d), logout revocation, 5-attempt 423 lockout, email verify/reset & /citizen/profile active' },
+    'Citizen Portal': { status: 'Complete', notes: 'React 19 + Vite 8 + React Router 7: Dashboard, ReportPothole (1-5 photos), CitizenReportDetails, /verify-email, /reset-password, /citizen/profile' },
+    'Interactive Map': { status: 'Complete', notes: 'Leaflet 1.9 + leaflet.markercluster + OpenStreetMap Nominatim search & status filters' },
+    'Pothole Reporting': { status: 'Complete', notes: '1-5 multi-photo upload, exifr EXIF GPS cross-check (exif_mismatch), GPS accuracy warnings & manual pin fallback; Cloudinary postponed (local server/uploads/)' },
+    'Live Statistics / Counters': { status: 'Complete', notes: 'GET /api/stats/counters + SSE /api/stats/stream + /stats trends dashboard' },
+    'Problem Management': { status: 'Complete', notes: 'Strict status state machine + admin override, 13-table schema (001-003 migrations), immutable status_history audit trail' },
+    'Government Portal': { status: 'Complete', notes: 'GovDashboard summary KPIs, search/zone/date/flagged filters + 50m geo-fence & Admin escalation' },
+    'Repair Verification': { status: 'Complete', notes: 'PostGIS ST_Distance (<= 50 m default, configurable in app_settings) geo-fence + Stage 2 verify & retry/escalation' },
+    'Database': { status: 'Complete', notes: 'PostgreSQL 17.11 + PostGIS 3 + migrations 001-003 (refresh_tokens, auth_tokens, app_settings)' },
+    'AI Verification': { status: 'In Progress', notes: 'FastAPI (:8000) active with heuristic stub (dynamic accept/reject gates); YOLO training in Phase 4' },
+    'Security': { status: 'Complete', notes: 'zod validation, express-rate-limit, 423 lockout, parameterized pg SQL, RBAC, automated phase2 & phase3 test suites (6/6) passing' },
+    'Notifications': { status: 'In Progress', notes: 'notifications table active in PostgreSQL; in-app notifications API & Notification Center UI postponed' },
+    'Administration': { status: 'Complete', notes: '/admin/review, /admin/users, /admin/audit-logs & /admin/settings live & verified' },
   };
   for (const row of modRows) {
     const t = modMap[getTitle(row)];
@@ -140,13 +140,17 @@ async function updateDatabases() {
     'Build Citizen Portal UI': { status: 'Done', progress: 100 },
     'Build Government Portal UI': { status: 'Done', progress: 100 },
     'Integrate map provider': { status: 'Done', progress: 100 },
-    'Implement report markers and clustering': { status: 'In progress', progress: 85 },
-    'Implement AI verification service': { status: 'In progress', progress: 65 },
+    'Implement report markers and clustering': { status: 'Done', progress: 100, notes: 'leaflet.markercluster + OpenStreetMap Nominatim search live on /map' },
+    'Implement AI verification service': { status: 'In progress', progress: 65, notes: 'FastAPI (:8000) active with stub weights & dynamic app_settings gates; YOLO training in Phase 4' },
     'Build Government Portal features': { status: 'Done', progress: 100 },
     'Implement completion image upload and verification': { status: 'Done', progress: 100 },
+    'Write and run functional test cases': { status: 'In progress', progress: 80, notes: '6/6 automated Phase 2-3 tests + TC-001..TC-017 passing; Phase 4/5 E2E remaining' },
+    'Perform security testing': { status: 'In progress', progress: 65, notes: 'Zod, 423 lockout, rate limit, refresh rotation & RBAC automated; Phase 5 full E2E audit remaining' },
+    'End-to-end integration testing': { status: 'In progress', progress: 70, notes: 'Citizen -> AI stub -> Gov -> Admin E2E verified; final Phase 4 YOLO E2E pending' },
     'Write SRS and technical documentation': { status: 'Done', progress: 100 },
     'Collect and review research papers': { status: 'Done', progress: 100 },
     'Write literature review document': { status: 'Done', progress: 100 },
+    'Prepare final presentation and demo': { status: 'Not started', progress: 25, notes: 'Baseline .pptx on disk; refresh with Phases 2-4 results planned next' },
   };
   for (const row of roadRows) {
     const t = roadMap[getTitle(row)];
@@ -154,67 +158,147 @@ async function updateDatabases() {
       await updatePageProperties(row.id, {
         Status: { status: { name: t.status } },
         Progress: { number: t.progress },
+        ...(t.notes !== undefined ? { Notes: { rich_text: [rt(t.notes)] } } : {}),
       });
     }
   }
   console.log('  Synced Project Roadmap');
 
-  // API Design
-  const apiRows = await queryDatabase('e7a3b4b7-270d-406b-980c-eb155ad37f6c');
-  const apiMap = {
-    'API-001': { status: 'Implemented', notes: 'POST /api/auth/register (Citizen signup with bcryptjs)' },
-    'API-002': { status: 'Implemented', notes: 'POST /api/auth/login (JWT citizen & government portal login)' },
-    'API-003': { status: 'Implemented', notes: 'Client JWT discard + stateless session cleanup' },
-    'API-004': { status: 'Implemented', notes: 'POST /api/reports (Multipart photo, GPS/pin validation, ST_DWithin check)' },
-    'API-005': { status: 'Implemented', notes: 'GET /api/reports/map (Public verified Vadodara markers)' },
-    'API-006': { status: 'Implemented', notes: 'GET /api/reports/:id (Citizen/Gov report details & images)' },
-    'API-007': { status: 'Implemented', notes: 'PATCH /api/gov/reports/:id/status (Department dispatch & progress)' },
-    'API-008': { status: 'Implemented', notes: 'POST /api/gov/reports/:id/completion (100 m geo-fence + Stage 2 verify)' },
-    'API-009': { status: 'Implemented', notes: 'GET /api/stats/counters (Total = Active + Solved)' },
-    'API-010': { status: 'Implemented', notes: 'GET /api/auth/me (Authenticated current user profile)' },
-    'API-011': { status: 'Implemented', notes: 'GET /api/reports/mine (Citizen own report list)' },
-    'API-012': { status: 'Designed', notes: 'GET/PATCH /api/admin/* (Phase 3 admin review queue & user governance)' },
+  // API Design (sync all metadata + upsert Phase 2/3 endpoints)
+  const API_DB = 'e7a3b4b7-270d-406b-980c-eb155ad37f6c';
+  const apiRows = await queryDatabase(API_DB);
+  const existingApiById = new Map(apiRows.map((r) => [getTitle(r), r]));
+  const apiSpec = {
+    'API-001': { method: 'POST', role: 'Public', auth: 'No', endpoint: '/api/auth/register', purpose: 'Register a new citizen account & issue verify token', status: 'Implemented', notes: 'Zod validated, bcryptjs, returns 15m JWT + 7d refresh + devVerifyUrl in dev' },
+    'API-002': { method: 'POST', role: 'Public', auth: 'No', endpoint: '/api/auth/login', purpose: 'Authenticate user and issue JWT + refresh token', status: 'Implemented', notes: 'authLimiter, 5-attempt 423 lockout, portal role check' },
+    'API-003': { method: 'POST', role: 'Citizen', auth: 'Yes', endpoint: '/api/auth/logout', purpose: 'Revoke refresh session cleanly', status: 'Implemented', notes: 'Revokes SHA-256 hash inside refresh_tokens' },
+    'API-004': { method: 'POST', role: 'Citizen', auth: 'Yes', endpoint: '/api/reports', purpose: 'Submit pothole report (1-5 photos + GPS/EXIF)', status: 'Implemented', notes: 'uploadLimiter, verified email gate, exifr EXIF GPS check, ST_DWithin duplicate check' },
+    'API-005': { method: 'GET', role: 'Public', auth: 'No', endpoint: '/api/reports/map', purpose: 'Get list of public verified reports for the map', status: 'Implemented', notes: 'Public verified Vadodara markers for leaflet.markercluster' },
+    'API-006': { method: 'GET', role: 'Citizen', auth: 'Yes', endpoint: '/api/reports/{id}', purpose: 'Get details, gallery, EXIF flags & timeline of a report', status: 'Implemented', notes: 'Owner citizen or verified-report gov/admin staff' },
+    'API-007': { method: 'PATCH', role: 'Government', auth: 'Yes', endpoint: '/api/gov/reports/{id}/status', purpose: 'Assign zone, update progress, or escalate to review', status: 'Implemented', notes: 'assigned | in_progress | repair_completed | under_review' },
+    'API-008': { method: 'POST', role: 'Government', auth: 'Yes', endpoint: '/api/gov/reports/{id}/completion', purpose: 'Upload completion photo & run Stage 2 geo-fence verify', status: 'Implemented', notes: '50 m default geo-fence (configurable in app_settings) + AI check' },
+    'API-009': { method: 'GET', role: 'Public', auth: 'No', endpoint: '/api/stats/counters', purpose: 'Get Total / Active / Solved KPIs, SSE stream & trends', status: 'Implemented', notes: 'GET /counters, SSE /stream, /trends & /settings/public live' },
+    'API-010': { method: 'GET', role: 'Citizen', auth: 'Yes', endpoint: '/api/auth/me', purpose: 'Get & update current profile or change password', status: 'Implemented', notes: 'GET /auth/me, PATCH /auth/profile, PATCH /auth/password' },
+    'API-011': { method: 'GET', role: 'Citizen', auth: 'Yes', endpoint: '/api/reports/mine', purpose: 'List citizen own reports & gov filtered triage queue', status: 'Implemented', notes: 'GET /reports/mine & multi-filtered GET /gov/reports' },
+    'API-012': { method: 'GET', role: 'Admin', auth: 'Yes', endpoint: '/api/admin/users', purpose: 'Admin: list, provision & suspend/activate users', status: 'Implemented', notes: 'GET/POST/PATCH /api/admin/users with refresh token revocation' },
+    'API-013': { method: 'POST', role: 'Public', auth: 'No', endpoint: '/api/auth/refresh', purpose: 'Rotate 7d refresh token & issue new 15m JWT', status: 'Implemented', notes: 'Single-use token rotation in refresh_tokens table' },
+    'API-014': { method: 'POST', role: 'Public', auth: 'No', endpoint: '/api/auth/verify-email', purpose: 'Verify citizen email & forgot/reset password tokens', status: 'Implemented', notes: 'POST /verify-email, /resend-verification, /forgot-password, /reset-password (dev links in dev; SMTP/OTP planned)' },
+    'API-015': { method: 'PATCH', role: 'Admin', auth: 'Yes', endpoint: '/api/admin/reports/{id}/override', purpose: 'Admin review queue & manual report override / flag clear', status: 'Implemented', notes: 'GET /admin/review-queue & PATCH /admin/reports/:id/override' },
+    'API-016': { method: 'PATCH', role: 'Admin', auth: 'Yes', endpoint: '/api/admin/settings', purpose: 'Admin audit logs & live AI/spatial thresholds', status: 'Implemented', notes: 'GET /admin/audit-logs & GET/PATCH /admin/settings (app_settings)' },
   };
-  for (const row of apiRows) {
-    const t = apiMap[getTitle(row)];
-    if (t) {
-      await updatePageProperties(row.id, {
-        Status: { select: { name: t.status } },
-        Notes: { rich_text: [rt(t.notes)] },
-      });
+  for (const [apiId, spec] of Object.entries(apiSpec)) {
+    const props = {
+      'API ID': { title: [rt(apiId)] },
+      Endpoint: { rich_text: [rt(spec.endpoint)] },
+      'HTTP Method': { select: { name: spec.method } },
+      'User Role': { select: { name: spec.role } },
+      'Auth Required': { select: { name: spec.auth } },
+      Purpose: { rich_text: [rt(spec.purpose)] },
+      Status: { select: { name: spec.status } },
+      Notes: { rich_text: [rt(spec.notes)] },
+    };
+    const row = existingApiById.get(apiId);
+    if (row) {
+      await updatePageProperties(row.id, props);
+    } else {
+      await createDatabasePage(API_DB, props);
     }
   }
   console.log('  Synced API Design');
 
-  // Sync Task Board with clear real milestones (replace blank placeholder row if empty)
+  // Testing (sync existing TC-001..TC-015 + ensure TC-016 & TC-017 exist)
+  const TEST_DB = '9948a527-aa6b-4e5b-acfb-cb3143dd7f2f';
+  const testRows = await queryDatabase(TEST_DB);
+  const existingTestById = new Map(testRows.map((r) => [getTitle(r), r]));
+  const testUpdates = {
+    'TC-010': { module: 'Government Portal', category: 'Functional', status: 'Pass', priority: 'High', notes: 'Verified with 50 m configurable geo-fence & preview' },
+    'TC-014': { module: 'Pothole Reporting', category: 'Location', status: 'Pass', priority: 'Medium', notes: 'Browser geolocation + manual pin fallback + EXIF check verified' },
+    'TC-016': {
+      module: 'Authentication',
+      category: 'Security',
+      status: 'Pass',
+      priority: 'High',
+      scenario: 'Verify email idempotency, refresh rotation replay block, 5-attempt 423 lockout & reset',
+      input: 'phase2.test.js automated lifecycle requests',
+      expected: 'Replay rejected 401, 5th bad login locked 423, password reset clears lock',
+      actual: 'All assertions pass via npm --prefix server test (phase2.test.js)',
+      notes: 'Dev-mode tokenized links used locally; SMTP/OTP planned for production',
+    },
+    'TC-017': {
+      module: 'Security',
+      category: 'Functional',
+      status: 'Pass',
+      priority: 'High',
+      scenario: 'Admin RBAC (403 non-admin), staff suspend, review queue override & live settings',
+      input: 'phase3.test.js automated admin & stats requests',
+      expected: 'Gov denied 403 on /admin/*, suspended user blocked, override + app_settings saved',
+      actual: 'All assertions pass via npm --prefix server test (phase3.test.js)',
+      notes: 'SSE /stats/stream, /stats/trends & /gov/reports filters also verified',
+    },
+  };
+  for (const [tcId, spec] of Object.entries(testUpdates)) {
+    const row = existingTestById.get(tcId);
+    const props = {
+      'Test Case ID': { title: [rt(tcId)] },
+      Module: { select: { name: spec.module } },
+      Category: { select: { name: spec.category } },
+      Status: { select: { name: spec.status } },
+      Priority: { select: { name: spec.priority } },
+      Notes: { rich_text: [rt(spec.notes)] },
+      ...(spec.scenario ? { 'Test Scenario': { rich_text: [rt(spec.scenario)] } } : {}),
+      ...(spec.input ? { Input: { rich_text: [rt(spec.input)] } } : {}),
+      ...(spec.expected ? { 'Expected Result': { rich_text: [rt(spec.expected)] } } : {}),
+      ...(spec.actual ? { 'Actual Result': { rich_text: [rt(spec.actual)] } } : {}),
+    };
+    if (row) {
+      await updatePageProperties(row.id, props);
+    } else {
+      await createDatabasePage(TEST_DB, props);
+    }
+  }
+  console.log('  Synced Testing DB');
+
+  // Sync Task Board with clear real milestones (update existing rows & archive stale duplicates)
   const TASK_DB = '27e0b4c8-7488-4918-bd91-49efe5acad09';
   const existingTasks = await queryDatabase(TASK_DB);
-  const existingTitles = new Set(existingTasks.map((r) => getTitle(r)).filter(Boolean));
+  const existingByTitle = new Map(
+    existingTasks.map((r) => [getTitle(r), r]).filter(([k]) => Boolean(k)),
+  );
   const desiredTasks = [
-    ['Align PostgreSQL/PostGIS 10-table schema & Vadodara seed data', 'Completed', 'High', 'PostgreSQL 17.11 + PostGIS 3 running with 4 zones, 3 roles, 8 seeded complaints'],
+    ['Align PostgreSQL/PostGIS schema & Vadodara seed data (001-003 migrations)', 'Completed', 'High', 'PostgreSQL 17 + PostGIS 3 running 13 tables across 001-003 migrations with 4 zones, 3 roles, 8 seeded complaints'],
     ['Complete SRS, SDS, and Project Report (.docx & .pdf)', 'Completed', 'High', 'Formal NUV documentation locked (SRS 30p, SDS 19p, Project Report 33p)'],
-    ['Phase 2: Integrate Cloudinary cloud storage & EXIF GPS reader', 'To Do', 'High', 'Move uploads from local server/uploads/ to Cloudinary and parse camera EXIF'],
-    ['Phase 2/3: Multi-photo upload (1-5) & Notification Center UI', 'To Do', 'Medium', 'Surface notifications DB records cleanly inside Citizen & Gov navbars'],
-    ['Phase 3: Admin Review Queue & Department Governance UI', 'To Do', 'High', 'Add /admin screens for uncertain AI verifications, overrides, and audit logs'],
-    ['Phase 4: Train Ultralytics YOLO weights on RDD2022 & Pothole-600', 'Backlog', 'High', 'Replace FastAPI heuristic stub while preserving verify-pothole/verify-repair API'],
-    ['Phase 5-6: Automated Jest/Pytest/Playwright tests & Cloud deployment', 'Backlog', 'Medium', 'End-to-end test suite, rate-limiting, Docker Compose production rollout'],
-    ['Create Document #4: Final Project Presentation (.pptx)', 'To Do', 'High', 'Build defense slide deck from finalized SRS, SDS, Project Report, and UI captures'],
+    ['Phase 2: EXIF GPS reader, multi-photo (1-5) & Auth Hardening', 'Completed', 'High', 'exifr GPS check, 1-5 Multer upload, zod validation, 15m/7d rotating refresh tokens, 5-attempt 423 lockout, rate limit, /verify-email, /reset-password, /citizen/profile, phase2.test.js passing', 'Phase 2: Integrate Cloudinary cloud storage & EXIF GPS reader'],
+    ['Deferred Phase 2 Items: Cloudinary, SMTP/OTP Emails & Notification UI', 'To Do', 'Medium', 'Media remains local (server/uploads/); devVerifyUrl/devResetUrl used in dev until outbound SMTP/OTP is added; notifications DB table ready for future UI', 'Phase 2/3: Multi-photo upload (1-5) & Notification Center UI'],
+    ['Phase 3: Admin Review Queue & Department Governance UI', 'Completed', 'High', 'Clustered Leaflet map, Nominatim search, SSE counters, Gov multi-filter triage + 50m geo-fence, /admin/* (review/users/audit/settings), /stats dashboard & phase3.test.js passing'],
+    ['Phase 4: Train Ultralytics YOLO weights on RDD2022 & Pothole-600', 'Backlog', 'High', 'Replace FastAPI heuristic stub while preserving POST /detect/pothole and POST /verify/repair endpoints'],
+    ['Phase 5-6: E2E Playwright/Pytest verification & Cloud deployment', 'Backlog', 'Medium', '6/6 backend integration tests (phase2 & phase3) already passing; E2E browser suite & cloud deploy remaining'],
+    ['Refresh Document #4: Final Project Presentation (.pptx)', 'To Do', 'High', 'Update docs/presentations/Smart Civic Pothole System - Presentation.pptx with Phases 2-3 & final results', 'Create Document #4: Final Project Presentation (.pptx)'],
   ];
-  // Reuse blank row if present
+  const matchedIds = new Set();
   let blankRow = existingTasks.find((r) => !getTitle(r));
-  for (const [title, status, priority, notes] of desiredTasks) {
-    if (existingTitles.has(title)) continue;
+  for (const [title, status, priority, notes, legacyTitle] of desiredTasks) {
+    const existingRow = existingByTitle.get(title) || (legacyTitle ? existingByTitle.get(legacyTitle) : null);
     const props = {
       Task: { title: [rt(title)] },
       Status: { status: { name: status } },
       Priority: { select: { name: priority } },
       Description: { rich_text: [rt(notes)] },
     };
-    if (blankRow) {
+    if (existingRow) {
+      await updatePageProperties(existingRow.id, props);
+      matchedIds.add(existingRow.id);
+    } else if (blankRow) {
       await updatePageProperties(blankRow.id, props);
+      matchedIds.add(blankRow.id);
       blankRow = null;
     } else {
-      await createDatabasePage(TASK_DB, props);
+      const created = await createDatabasePage(TASK_DB, props);
+      if (created?.id) matchedIds.add(created.id);
+    }
+  }
+  for (const row of existingTasks) {
+    if (!matchedIds.has(row.id)) {
+      await notionRequest(`/pages/${row.id}`, { method: 'PATCH', body: JSON.stringify({ archived: true }) });
     }
   }
   console.log('  Synced Task Board');
@@ -274,7 +358,7 @@ async function updatePages(imgs) {
 
   // 1. Project Brief
   await replacePageContent('3dff97eb-e92d-81b4-9cd4-f9fe2f2f1e3e', [
-    callout('🚦', 'Status: Phase 0 & 1 Live + Verified | SRS, SDS & Project Report Completed | Next: Phases 2-3 & Final Presentation'),
+    callout('🚦', 'Status: Phases 0-3 Completed (Public Map, Citizen, Gov & Admin Portals Live) | Next: Phase 4 (YOLO Dataset & Training)'),
     h2('Project Metadata'),
     tableBlock(
       ['Field', 'Details'],
@@ -291,7 +375,7 @@ async function updatePages(imgs) {
     h2('Solution Overview (Closed-Loop Verification)'),
     bullet('Geotagged Intake: ', 'Citizens capture GPS coordinates (with manual road-pin adjustments capped near the fix) and upload pothole photos.'),
     bullet('Spatial Gatekeeping: ', 'PostGIS flags potential duplicate reports within 200 m before creating cluttered tickets.'),
-    bullet('Municipal Triage & Geo-Fenced Closure: ', 'Vadodara officers dispatch zone repairs and upload completion photos validated within 100 m of the original complaint.'),
+    bullet('Municipal Triage & Geo-Fenced Closure: ', 'Vadodara officers dispatch zone repairs and upload completion photos validated within 50 m (configurable) of the original complaint.'),
     bullet('Live Public Accountability: ', 'Interactive Leaflet map and KPI counters maintain Total = Active + Solved atomically.'),
     imgBlock(imgs.uiLanding, 'Live Public Portal showing Vadodara KPI counters and interactive map preview'),
   ]);
@@ -303,10 +387,10 @@ async function updatePages(imgs) {
     tableBlock(
       ['Role', 'Portal Access', 'Core Capabilities', 'Demo Credentials'],
       [
-        ['Public Visitor', '/ and /map', 'View Vadodara live map, filter markers by status, inspect real-time KPI counters', 'No login required'],
-        ['Citizen', '/citizen, /citizen/report', 'Register/login, submit geotagged pothole complaints, track own reports, view before/after resolution proof', 'citizen@demo.local / Citizen@123'],
-        ['Government Officer', '/gov, /gov/reports/:id', 'Triage Needs-Action queue, assign departments, move work through assigned -> in_progress -> repair_completed, upload geo-fenced closure photos', 'gov@demo.local / Gov@12345'],
-        ['System Admin', 'Protected /gov + Admin UI (Phase 3)', 'Oversee departments/staff, review flagged AI submissions, inspect audit_logs', 'admin@demo.local / Admin@1234'],
+        ['Public Visitor', '/, /map, /stats', 'View clustered Vadodara map, search locations (Nominatim), track SSE counters & analytics trends', 'No login required'],
+        ['Citizen', '/citizen, /citizen/report, /citizen/profile, /verify-email, /reset-password', 'Register/login, verify email, reset password, manage profile, submit 1-5 geotagged pothole photos, view EXIF/location flags & resolution proof', 'citizen@demo.local / Citizen@123'],
+        ['Government Officer', '/gov, /gov/reports/:id', 'Multi-filter Needs-Action queue, assign departments, upload 50 m geo-fenced closure photos, retry or escalate to Admin Review', 'gov@demo.local / Gov@12345'],
+        ['System Admin', '/admin/review, /admin/users, /admin/audit-logs, /admin/settings', 'Manage/suspend staff & citizens, override flagged/rejected reports, inspect audit_logs, tune AI & distance thresholds live', 'admin@demo.local / Admin@1234'],
       ],
     ),
     imgBlock(imgs.usecase, 'System Use Case Diagram across Public, Citizen, Government, Admin, and AI Engine actors'),
@@ -316,7 +400,7 @@ async function updatePages(imgs) {
   await replacePageContent('3dff97eb-e92d-816d-a095-ec45c689f7e9', [
     callout('🔄', 'Closed-loop workflow guaranteeing every complaint progresses cleanly through verified state transitions recorded in status_history.'),
     h2('Closed-Loop State Machine'),
-    p('Reports enter as pending_verification, transition to active after Stage 1 check (counted in Total & Active), progress through assigned -> in_progress -> repair_completed, and close as solved (Active -1, Solved +1) only after 100 m geo-fenced completion proof passes Stage 2 check.'),
+    p('Reports enter as pending_verification, transition to active after Stage 1 check (counted in Total & Active), progress through assigned -> in_progress -> repair_completed, and close as solved (Active -1, Solved +1) after 50 m default geo-fenced completion proof passes Stage 2 check (or Admin override from under_review / rejected).'),
     imgBlock(imgs.state, 'Six-State Closed-Loop Report Lifecycle & Transition Guards'),
     divider(),
     h2('Context & Process Data Flows (DFD Level 0 & 1)'),
@@ -332,20 +416,23 @@ async function updatePages(imgs) {
 
   // 4. Database Design
   await replacePageContent('3dff97eb-e92d-81ff-b50b-e3fd3dcc8f43', [
-    callout('🗄️', 'PostgreSQL 17.11 + PostGIS 3 normalized 10-table schema (database/migrations/001_initial_schema.sql) with GIST spatial indexing.'),
-    h2('Schema Overview (10 Tables)'),
+    callout('🗄️', 'PostgreSQL 17.11 + PostGIS 3 normalized 13-table schema (001_initial_schema.sql, 002_auth_hardening.sql, 003_admin_settings.sql) with GIST spatial indexing.'),
+    h2('Schema Overview (13 Tables across Migrations 001–003)'),
     tableBlock(
       ['Table', 'Primary Key', 'Foreign Keys', 'Role in System'],
       [
         ['departments', 'dept_id', '—', 'Vadodara municipal road maintenance zones (North, South, East, West)'],
-        ['users', 'user_id', 'department_id -> departments', 'Citizen, government staff, and administrator accounts'],
-        ['reports', 'report_id', 'citizen_id, department_id', 'Core geotagged pothole complaints with PostGIS GEOGRAPHY(POINT, 4326)'],
-        ['report_images', 'image_id', 'report_id -> reports', 'Uploaded citizen pothole evidence photos'],
+        ['users', 'user_id', 'department_id -> departments', 'Citizen, government staff & admin accounts (with email_verified, failed_login_attempts, locked_until)'],
+        ['refresh_tokens', 'token_id', 'user_id -> users', 'SHA-256 hashed rotating 7-day refresh tokens & revocation timestamps'],
+        ['auth_tokens', 'token_id', 'user_id -> users', 'Single-use hashed tokens for email verification (24h) and password reset (1h)'],
+        ['app_settings', 'key', 'updated_by -> users', 'Admin-configurable AI accept/reject cutoffs and spatial GPS/EXIF/repair thresholds'],
+        ['reports', 'report_id', 'citizen_id, department_id', 'Core geotagged pothole complaints with PostGIS GEOGRAPHY(POINT, 4326) & EXIF GPS'],
+        ['report_images', 'image_id', 'report_id -> reports', 'Uploaded citizen pothole evidence photos (1-5 per report)'],
         ['repairs', 'repair_id', 'report_id, dept_id, assigned_by', 'Municipal work orders tracking assigned/started/completed timestamps'],
         ['completion_images', 'comp_img_id', 'repair_id, uploaded_by', 'Post-repair photos with GEOGRAPHY location & distance_m from complaint'],
         ['ai_verifications', 'ai_id', 'report_id, report_image_id, completion_image_id', 'Stage 1 & Stage 2 confidence scores, results, and JSONB diagnostics'],
         ['status_history', 'history_id', 'report_id, changed_by', 'Immutable lifecycle audit trail for every transition'],
-        ['notifications', 'notif_id', 'user_id, report_id', 'User & officer alerts persisted per state update'],
+        ['notifications', 'notif_id', 'user_id, report_id', 'Notification persistence table (API & Notification Center UI postponed)'],
         ['audit_logs', 'audit_id', 'user_id', 'Administrative and system security audit trail'],
       ],
     ),
@@ -367,9 +454,9 @@ async function updatePages(imgs) {
 
   // 5. Relationships / ER Diagram
   await replacePageContent('3dff97eb-e92d-818f-8626-ed2d4327d226', [
-    callout('🔗', 'Normalized Chen Entity-Relationship Diagram and Object-Oriented Class Architecture covering all 10 relational entities.'),
-    h2('Ten-Table Chen Entity-Relationship Diagram'),
-    imgBlock(imgs.er, 'Chen ER Diagram — departments, users, reports, report_images, repairs, completion_images, ai_verifications, status_history, notifications, audit_logs'),
+    callout('🔗', 'Normalized Chen Entity-Relationship Diagram (base 10 entities extended by migrations 002 & 003 to 13 tables including refresh_tokens, auth_tokens, app_settings) and OOP Class Architecture.'),
+    h2('Core Entity-Relationship Diagram (13 Tables in Live DB)'),
+    imgBlock(imgs.er, 'Chen ER Diagram — departments, users, reports, report_images, repairs, completion_images, ai_verifications, status_history, notifications, audit_logs (+ refresh_tokens, auth_tokens, app_settings)'),
     divider(),
     h2('System Class Diagram'),
     imgBlock(imgs.cls, 'Domain Class Diagram depicting controllers, services, repositories, and AI verification client'),
@@ -382,8 +469,8 @@ async function updatePages(imgs) {
     tableBlock(
       ['Stage', 'Endpoint', 'Decision Threshold', 'Current Status'],
       [
-        ['Stage 1 — Citizen Pothole Check', 'POST /api/v1/verify-pothole', 'Confidence >= 0.60 -> active (else uncertain/rejected)', 'FastAPI contract live (deterministic stub; YOLO training in Phase 4)'],
-        ['Stage 2 — Post-Repair Clearance', 'POST /api/v1/verify-repair', 'Confidence >= 0.40 + distance_m <= 100 m -> solved', 'FastAPI contract + PostGIS 100 m geo-fence active'],
+        ['Stage 1 — Citizen Pothole Check', 'POST /detect/pothole', 'Confidence >= 0.60 -> active (< 0.40 reject, else under_review; tunable in /admin/settings)', 'FastAPI contract live (deterministic stub; YOLO training in Phase 4)'],
+        ['Stage 2 — Post-Repair Clearance', 'POST /verify/repair', 'Confidence >= 0.60 + distance_m <= 50 m -> solved (tunable in /admin/settings)', 'FastAPI contract + PostGIS 50 m geo-fence active'],
       ],
     ),
     h2('Verification Service Stack'),
@@ -392,16 +479,17 @@ async function updatePages(imgs) {
 
   // 7. Map / Geolocation Module
   await replacePageContent('3dff97eb-e92d-81d6-9380-f828214fe9f9', [
-    callout('🗺️', 'Live Interactive Vadodara GIS Map powered by Leaflet 1.9 + OpenStreetMap tiles + PostGIS GEOGRAPHY(POINT, 4326) spatial queries.'),
-    h2('Implemented Geolocation & Spatial Rules'),
+    callout('🗺️', 'Live Clustered Vadodara GIS Map powered by Leaflet 1.9 + leaflet.markercluster + OpenStreetMap Nominatim search + PostGIS GEOGRAPHY(POINT, 4326).'),
+    h2('Implemented Geolocation & Spatial Rules (Configurable in Admin Settings)'),
     tableBlock(
-      ['Spatial Rule', 'Configured Threshold', 'Purpose'],
+      ['Spatial Rule', 'Default Threshold (app_settings)', 'Purpose'],
       [
-        ['Browser GPS Accuracy Gate', '25 m target accuracy', 'Prevents wild coarse cell-tower pins on citizen intake'],
-        ['Manual Map-Pin Offset Limit', '50 m from GPS fix', 'Lets citizens refine road-side pin without spoofing distant wards'],
-        ['Duplicate Proximity Check', '200 m (ST_DWithin)', 'Flags existing active complaints near the same road intersection'],
-        ['Repair Worker Closure Geo-Fence', '100 m (ST_Distance)', 'Blocks completion uploads submitted away from the original pothole coordinate'],
-        ['Photo EXIF Cross-Check', 'Planned in Phase 2', 'Extracts embedded camera GPS headers into exif_lat / exif_lng columns'],
+        ['Browser GPS Accuracy Gate', '25 m target / > 100 m flag', 'Highlights weak GPS in amber and flags reports above 100 m for manual review'],
+        ['Manual Map-Pin Offset Flag', '200 m from GPS fix', 'Lets citizens refine road-side pin while flagging large displacement (pin_moved_far)'],
+        ['Duplicate Proximity Check', '25 m (ST_DWithin)', 'Flags existing open verified complaints near the same road spot (possible_duplicate)'],
+        ['Repair Worker Closure Geo-Fence', '50 m (ST_Distance)', 'Visual green circle + server check requiring completion photos within 50 m of pothole'],
+        ['Photo EXIF Cross-Check', 'Live (exifr, > 200 m flag)', 'Extracts embedded camera GPS headers into exif_lat / exif_lng & flags exif_mismatch'],
+        ['Area / Road Geocoding Search', 'OpenStreetMap Nominatim', 'Instant Vadodara area/road lookup with smooth map fly-to transitions'],
       ],
     ),
     imgBlock(imgs.uiMap, 'Interactive Vadodara Live Map displaying seeded pothole markers and status filters'),
@@ -414,9 +502,9 @@ async function updatePages(imgs) {
     tableBlock(
       ['Tier', 'Technology Versions', 'Responsibility'],
       [
-        ['Client Web App', 'React 19, Vite 8, React Router 7, Leaflet 1.9', 'Public landing, interactive map, citizen submission flow, government dashboard'],
-        ['API Server', 'Node.js, Express 5.3, pg 8.23, jsonwebtoken 9, bcryptjs 3, Multer 2.4', 'JWT RBAC auth, spatial validation, atomic status transactions, Cloudinary (Phase 2)'],
-        ['Spatial Database', 'PostgreSQL 17.11 + PostGIS 3.x', '10-table ACID relational store with GIST geography spatial queries'],
+        ['Client Web App', 'React 19, Vite 8, React Router 7, Leaflet 1.9, leaflet.markercluster 2.0', 'Public landing & /stats analytics, clustered map + Nominatim search, Citizen, Gov & Admin portals'],
+        ['API Server', 'Node.js, Express 5.3, pg 8.23, zod, exifr, express-rate-limit, jsonwebtoken 9, bcryptjs 3, Multer 2.4', 'JWT 15m/7d refresh RBAC, lockout, EXIF & 1-5 local uploads, SSE counters, Admin governance & spatial checks'],
+        ['Spatial Database', 'PostgreSQL 17.11 + PostGIS 3.x', '13-table ACID relational store (migrations 001-003) with GIST geography spatial queries'],
         ['AI Microservice', 'Python 3.13, FastAPI 0.143, Uvicorn, Pydantic', 'Stage 1 pothole verification & Stage 2 repair clearance microservice'],
       ],
     ),
@@ -441,8 +529,8 @@ async function updatePages(imgs) {
 
   // 10. Live Counters & Statistics
   await replacePageContent('3dff97eb-e92d-81cb-acd9-f5f44f53346d', [
-    callout('📊', 'Public accountability invariant enforced by PostgreSQL queries: Total Verified Reports = Active in Pipeline + Repaired & Solved.'),
-    h2('Counter Definitions & Live Verified Values'),
+    callout('📊', 'Public accountability invariant pushed live via SSE (GET /api/stats/stream): Total Verified Reports = Active in Pipeline + Repaired & Solved.'),
+    h2('Counter Definitions & Live Seeded Values'),
     tableBlock(
       ['Metric', 'Included Report Statuses', 'Live Seeded Count'],
       [
@@ -451,21 +539,22 @@ async function updatePages(imgs) {
         ['Repaired & Solved', 'solved (Stage 2 verified closure)', '2'],
       ],
     ),
-    p('On GET /api/stats/counters, the server computes Active and Solved directly from PostgreSQL and guarantees Total = Active + Solved with zero drift.'),
+    p('On GET /api/stats/counters, SSE /api/stats/stream, and GET /api/stats/trends (/stats dashboard), PostgreSQL computes counts, daily Reported vs. Solved trends, resolution times, and zone workloads atomically.'),
   ]);
 
   // 11. Security & Privacy
   await replacePageContent('3dff97eb-e92d-8155-a774-f8ed67379a8b', [
-    callout('🔐', 'Security Checklist synchronized with implemented backend guards and remaining Phase 2-5 hardening milestones.'),
-    h2('Implemented Security Controls'),
-    bullet('Password Hashing: ', 'bcryptjs salted hashing stored inside users.password_hash.'),
-    bullet('JWT Role Segregation: ', 'Protected citizen (/api/reports/*) and municipal (/api/gov/*) routes enforce role claims via auth middleware.'),
-    bullet('SQL Injection Prevention: ', '100% parameterized queries via pg pool in repositories.'),
-    bullet('Upload Filtering: ', 'Multer enforces 8 MB size cap and image MIME allowlist (JPEG, PNG, WebP).'),
-    bullet('Immutable Auditability: ', 'Every state transition logs into status_history, and admin actions map to audit_logs.'),
-    h2('Planned Security Hardening (Phases 2-5)'),
-    bullet('Cloudinary upload signatures & EXIF GPS cross-check (Phase 2).', ''),
-    bullet('API rate limiting on auth & report submission + security regression tests (Phase 5).', ''),
+    callout('🔐', 'Phases 2-3 Security, Auth & Admin Governance live (verified by automated phase2.test.js & phase3.test.js suites, 6/6 passing).'),
+    h2('Implemented Security & Auth Controls'),
+    bullet('Password Hashing & Validation: ', 'bcryptjs salted hashes + strict zod request schema validation across auth & profile endpoints.'),
+    bullet('Rotating Sessions & Lockout: ', '15-minute access JWT paired with 7-day rotating SHA-256 refresh_tokens, /logout revocation, and 5-attempt 423 Locked (15 min) account lockout.'),
+    bullet('Rate Limiting & RBAC: ', 'express-rate-limit (authLimiter on login/register/verify/reset, uploadLimiter on POST /api/reports) plus email_verified gate before reporting.'),
+    bullet('Upload Filtering & EXIF Cross-Check: ', 'Multer enforces 1-5 images (<= 8 MB JPEG/PNG/WebP) stored locally in server/uploads/; exifr parses embedded GPS and flags > 200 m exif_mismatch.'),
+    bullet('SQL Injection Prevention & Auditability: ', '100% parameterized pg queries, status_history transition logs, and audit_logs trail.'),
+    h2('Dev-Mode Verification vs. Future Production Enhancements (Deferred Scope)'),
+    bullet('Email Verification & Password Reset (SMTP/OTP Planned): ', 'Local development issues SHA-256 auth_tokens and surfaces clickable devVerifyUrl/devResetUrl links (+ server logs) for instant 1-click testing without an SMTP server. Production deployment will send outbound SMTP emails containing either an OTP code or emailed link instead of returning dev URLs.'),
+    bullet('Cloudinary Cloud Storage (Postponed): ', 'Uploaded photos remain in local server/uploads/ for Phases 2-3 rather than Cloudinary.'),
+    bullet('In-App Notification Center UI (Postponed): ', 'PostgreSQL notifications table stays ready while API endpoints and header notification UI are postponed.'),
   ]);
 
   // 12. Project Documentation
@@ -478,7 +567,7 @@ async function updatePages(imgs) {
         ['Software Requirement Specifications (SRS)', 'docs/reports/Software Requirement Specifications.docx & .pdf', '30 pages — IEEE Std, DFD/UML/Use-Case/Sequence/ER diagrams', 'Completed & Locked'],
         ['Software Design Specifications (SDS)', 'docs/reports/Software Design Specifications.docx & .pdf', '19 pages — N-tier architecture, state machine, UI nav, API specs', 'Completed & Locked'],
         ['Major Project Report', 'docs/reports/Project Report.docx & .pdf', '33 pages — NUV front pages, TOC/LOF/LOT, Ch 1-6, UI captures, Appendix A & B Data Dictionary', 'Completed'],
-        ['Project Presentation', 'docs/presentations/Smart Civic Pothole System - Presentation.pptx', 'Defense slide deck aligned with final report', 'Planned Next'],
+        ['Project Presentation', 'docs/presentations/Smart Civic Pothole System - Presentation.pptx', 'Defense slide deck (Oct 2026 baseline on disk)', 'Needs Phase 2-3/4 refresh'],
       ],
     ),
   ]);

@@ -11,3 +11,4 @@ export const unauthorized = (msg = 'Authentication required') => new HttpError(4
 export const forbidden = (msg = 'You do not have access to this resource') => new HttpError(403, msg);
 export const notFound = (msg = 'Not found') => new HttpError(404, msg);
 export const conflict = (msg) => new HttpError(409, msg);
+export const locked = (msg = 'Account temporarily locked due to failed login attempts') => new HttpError(423, msg);

@@ -1,5 +1,6 @@
 import * as reportService from '../services/reportService.js';
 import * as reports from '../repositories/reportRepository.js';
+import { uploadedFilesFrom } from '../middleware/upload.js';
 import { badRequest } from '../utils/httpError.js';
 
 export function parseId(req) {
@@ -9,7 +10,8 @@ export function parseId(req) {
 }
 
 export async function create(req, res) {
-  const report = await reportService.createReport({ citizenId: req.user.id, body: req.body, file: req.file, ip: req.ip });
+  const files = uploadedFilesFrom(req);
+  const report = await reportService.createReport({ citizenId: req.user.id, body: req.body, files, ip: req.ip });
   res.status(201).json({ report });
 }
 

@@ -1,7 +1,7 @@
 # System Architecture & Technical Design Specification
 
 > **Project:** Smart Civic Road Issue Reporting and AI-Based Pothole Verification System  
-> **Status:** Phase 0 Built · Ready for Phase 1 Design Sign-off
+> **Status:** Phase 3 Completed (Live Map Clustering, Gov Portal Upgrades, Admin Governance & Analytics Live) · Next: Phase 4 (YOLO Dataset & Training)
 
 ---
 
@@ -38,18 +38,20 @@ The platform is designed as an event-driven, decoupled system consisting of a Re
 ## 2. Microservice Responsibilities
 
 ### 2.1 Web Application (`client/`)
-- **Technology:** React 19, Vite 8, React Router v7, React-Leaflet 5.
+- **Technology:** React 19, Vite 8, React Router v7, React-Leaflet 5, `leaflet.markercluster`.
 - **Port:** `http://localhost:5173`
 - **Key Capabilities:**
-  - Citizen flow: Geolocation request, map pin drag-and-drop, camera live capture, real-time status tracking.
-  - Public flow: Live map with color-coded markers, counter cards (Total/Active/Solved), "How it works" guide.
-  - Government flow: Role-gated dashboard (`/gov`), triage table, ward/department assignment, before/after completion photo verification interface.
+  - Citizen flow: Registration, email verification (`/verify-email`), forgot/reset password (`/forgot-password`, `/reset-password`), profile & password management (`/citizen/profile`), geolocation request + weak-GPS warnings, map pin drag-and-drop, 1–5 multi-photo upload & gallery, real-time status tracking.
+  - Public flow: Live clustered map (`/map`) with Nominatim Vadodara location search & color-coded status filters, real-time SSE counter cards (`GET /api/stats/stream`), `/stats` analytics trends & zone performance dashboard.
+  - Government flow: Role-gated dashboard (`/gov`) with search/department/date/flagged filters + summary KPIs, ward assignment, visual `50 m` repair geo-fence, live completion preview, retry & Admin escalation (`under_review`).
+  - Admin Governance flow (`/admin/*`): Review Queue & manual overrides (`/admin/review`), user & staff provisioning + suspension (`/admin/users`), security/action Audit Log viewer (`/admin/audit-logs`), and live AI/spatial threshold tuning (`/admin/settings`).
 
 ### 2.2 Core Backend API (`server/`)
-- **Technology:** Node.js (v20+), Express 5, `pg` (node-postgres), Multer, JWT, Bcrypt.
+- **Technology:** Node.js (v20+), Express 5, `pg` (node-postgres), Multer, `exifr`, `zod`, `express-rate-limit`, JWT (15m access + 7d rotating refresh tokens), Bcrypt.
 - **Port:** `http://localhost:5000/api`
 - **Key Capabilities:**
-  - Authentication & Authorization: Role-based access control (`citizen`, `government`, `admin`).
+  - Authentication & Hardening: Role-based access control (`citizen`, `government`, `admin`), `zod` payload validation, `authLimiter` / `uploadLimiter` rate limiting, `5`-attempt `423 Locked` account lockout (`15 min`), refresh token rotation (`refresh_tokens`), logout revocation, and `auth_tokens` email verification/reset flows.
+  - Media & EXIF Check: 1–5 photo upload saved on local `server/uploads/` disk (Cloudinary postponed) with server-side `exifr` GPS extraction and `exif_mismatch` flagging ($> 200\text{ m}$).
   - Strict State Machine: Handles atomic transitions and writes an entry to `status_history` on every transition.
   - Spatial Engine: Executes PostGIS distance calculations (`ST_DWithin`, `ST_Distance`) for duplicate detection and repair proximity checks.
   - Asynchronous Dispatch: Offloads image inspection to the FastAPI service non-blockingly (`setImmediate`).
@@ -80,6 +82,16 @@ erDiagram
     REPORTS ||--o{ STATUS_HISTORY : "logs"
     USERS ||--o{ NOTIFICATIONS : "receives"
     USERS ||--o{ AUDIT_LOGS : "triggers"
+    USERS ||--o{ REFRESH_TOKENS : "holds"
+    USERS ||--o{ AUTH_TOKENS : "verifies with"
+    USERS ||--o{ APP_SETTINGS : "updates"
+
+    APP_SETTINGS {
+        string key PK
+        jsonb value
+        int updated_by FK
+        timestamp updated_at
+    }
 
     USERS {
         int id PK
@@ -89,6 +101,28 @@ erDiagram
         string role
         int department_id FK
         boolean is_active
+        boolean email_verified
+        int failed_login_attempts
+        timestamp locked_until
+        timestamp created_at
+    }
+
+    REFRESH_TOKENS {
+        int id PK
+        int user_id FK
+        string token_hash UK
+        timestamp expires_at
+        timestamp revoked_at
+        timestamp created_at
+    }
+
+    AUTH_TOKENS {
+        int id PK
+        int user_id FK
+        string purpose
+        string token_hash UK
+        timestamp expires_at
+        timestamp used_at
         timestamp created_at
     }
 
@@ -213,10 +247,11 @@ sequenceDiagram
 
 ---
 
-## 5. Architectural & Feature Decisions (Locked)
+## 5. Architectural & Feature Decisions (Phases 2 & 3 Updated)
 
-1. **Email Verification:** Flexible onboarding — citizens can register and access the dashboard immediately. However, submitting a pothole report (`POST /api/reports`) requires a verified email address (`email_verified = true`).
-2. **Report Image Allowance:** Multiple photos supported per report: Minimum **1 image**, Maximum **5 images** (JPEG/PNG/WebP, $\le 8\text{ MB}$ each).
-3. **Notification Channels:** In-app notifications only for Phase 2/3 (stored in `notifications` table and displayed in UI header/inbox).
+1. **Email Verification & Dev-Mode Links vs. Production SMTP/OTP:** Flexible onboarding — citizens register and inspect their dashboard immediately, while submitting a pothole report (`POST /api/reports`) requires `email_verified = true`. In the current local build, `auth_tokens` generate clickable dev-mode links (`devVerifyUrl` / `devResetUrl` and server console output) for 1-click local verification and password reset without an SMTP server. **Production Enhancement:** Integrate outbound SMTP delivery to send either an OTP code or an emailed verification/reset link instead of exposing dev-mode links in API responses.
+2. **Report Image Allowance & Storage:** Multiple photos are supported per report: Minimum **1 image**, Maximum **5 images** (JPEG/PNG/WebP, $\le 8\text{ MB}$ each), stored locally in `server/uploads/`. **Cloudinary cloud image upload is explicitly postponed** (even though described in earlier SRS/SDS academic drafts).
+3. **Notification Channels (Postponed):** The `notifications` PostgreSQL table exists, while **in-app notification endpoints (`/api/notifications`) and the Notification Center UI are postponed** for now.
 4. **AI Training Dataset:** Candidate datasets (Pothole-600, RDD2022, local Vadodara captures) will be evaluated and finalized in Phase 4.
-5. **Schema & UI Extensibility:** The PostgreSQL schema uses modular migrations (`database/migrations/`), allowing future columns and constraints to be added without breaking existing data. UI/UX styling is centrally driven via CSS custom properties in `global.css`.
+5. **Schema & UI Extensibility:** Modular migrations (`001_initial_schema.sql`, `002_auth_hardening.sql`, `003_admin_settings.sql`) allow additive evolution without breaking existing data, runtime threshold tuning via `app_settings`, and centralized styling in `global.css`.
+6. **Real-Time Map, Gov Escalation & Admin Governance:** Counters stream live via SSE (`GET /api/stats/stream` + `15 s` polling fallback), public map uses `leaflet.markercluster` + Nominatim search, officers can escalate disputed completions (`repair_completed -> under_review`), and admins manage overrides, users, audit logs, and live thresholds under `/admin/*`.

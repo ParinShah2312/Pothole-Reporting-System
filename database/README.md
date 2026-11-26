@@ -2,6 +2,6 @@
 
 | Folder | Purpose |
 |---|---|
-| `migrations` | Ordered SQL files that create/alter the schema |
-| `seeds` | Sample data (admin user, departments, test reports) |
-| `queries` | Reusable/reference SQL (counters, nearby/duplicate checks) |
+| `migrations` | Ordered SQL files that create/alter the schema (`001`–`003`) |
+| `queries` | Reusable/reference SQL checks |
+| *(seeding)* | Automated reset & Vadodara seed script lives in `server/scripts/seed.js` (`npm run db:reset`) |

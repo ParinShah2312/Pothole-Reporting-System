@@ -8,12 +8,12 @@ export const STATUSES = [
 
 const TRANSITIONS = {
   pending_verification: ['active', 'rejected', 'under_review'],
-  under_review: ['active', 'rejected'],
+  under_review: ['active', 'rejected', 'solved'],
   rejected: ['active'],
   active: ['assigned'],
   assigned: ['in_progress'],
   in_progress: ['repair_completed'],
-  repair_completed: ['solved'],
+  repair_completed: ['solved', 'under_review'],
   solved: [],
 };
 
@@ -34,19 +34,24 @@ export const canTransition = (from, to) => TRANSITIONS[from]?.includes(to) ?? fa
  * Locks the report row, validates the transition, and records history + a citizen notification.
  * `userId` null means the change was made by the system (AI).
  */
-export async function changeStatus(db, { reportId, to, userId = null, note = null }) {
+export async function changeStatus(db, { reportId, to, userId = null, note = null, allowOverride = false }) {
   const { rows } = await db.query('SELECT report_id AS id, status, citizen_id FROM reports WHERE report_id = $1 FOR UPDATE', [reportId]);
   const report = rows[0];
   if (!report) throw notFound('Report not found');
-  if (!canTransition(report.status, to)) {
+  if (!allowOverride && !canTransition(report.status, to)) {
     throw conflict(`Cannot change status from "${report.status}" to "${to}"`);
+  }
+  if (allowOverride && !STATUSES.includes(to)) {
+    throw conflict(`Invalid target status "${to}"`);
   }
 
   await db.query(
     `UPDATE reports
      SET status = $2::text, updated_at = now(),
-         verified_at = CASE WHEN $2::text = 'active' THEN COALESCE(verified_at, now()) ELSE verified_at END,
-         solved_at   = CASE WHEN $2::text = 'solved' THEN now() ELSE solved_at END
+         verified_at = CASE WHEN $2::text IN ('active', 'solved') THEN COALESCE(verified_at, now())
+                            WHEN $2::text = 'rejected' THEN NULL
+                            ELSE verified_at END,
+         solved_at   = CASE WHEN $2::text = 'solved' THEN COALESCE(solved_at, now()) ELSE solved_at END
      WHERE report_id = $1`,
     [reportId, to],
   );

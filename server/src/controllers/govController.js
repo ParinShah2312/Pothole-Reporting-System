@@ -5,9 +5,28 @@ import { badRequest } from '../utils/httpError.js';
 import { parseId } from './reportController.js';
 
 export async function listReports(req, res) {
-  const { status } = req.query;
+  const { status, departmentId, from, to, q, flagged } = req.query;
   if (status && !STATUSES.includes(status)) throw badRequest('Unknown status filter');
-  res.json({ reports: await reports.listForGovernment({ status }) });
+
+  const parsedDept = departmentId ? Number(departmentId) : undefined;
+  if (departmentId && (!Number.isInteger(parsedDept) || parsedDept <= 0)) {
+    throw badRequest('Invalid departmentId filter');
+  }
+  const dateRe = /^\d{4}-\d{2}-\d{2}$/;
+  if ((from && !dateRe.test(from)) || (to && !dateRe.test(to))) {
+    throw badRequest('Dates must be in YYYY-MM-DD format');
+  }
+
+  res.json({
+    reports: await reports.listForGovernment({
+      status: status || undefined,
+      departmentId: parsedDept,
+      from: from || undefined,
+      to: to || undefined,
+      q: typeof q === 'string' && q.trim() ? q.trim() : undefined,
+      flagged: flagged === 'true' || flagged === '1',
+    }),
+  });
 }
 
 export async function listDepartments(_req, res) {

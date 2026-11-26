@@ -3,10 +3,12 @@ import { Link } from 'react-router-dom';
 import Counters from '../../components/common/Counters.jsx';
 import StatusBadge from '../../components/common/StatusBadge.jsx';
 import { ErrorMessage, Loading } from '../../components/common/Feedback.jsx';
+import { useAuth } from '../../context/AuthContext.jsx';
 import { api } from '../../services/api.js';
 import { formatDate } from '../../utils/format.js';
 
 export default function CitizenDashboard() {
+  const { user } = useAuth();
   const [reports, setReports] = useState(null);
   const [error, setError] = useState(null);
 
@@ -20,6 +22,11 @@ export default function CitizenDashboard() {
         <h1>My reports</h1>
         <Link to="/citizen/report" className="btn btn-primary">+ Report new</Link>
       </div>
+      {user && user.email_verified === false && (
+        <div className="alert alert-warn" style={{ marginBottom: 16 }}>
+          <span>Your email address is unverified. <Link to="/citizen/profile" className="link">Verify it on your profile →</Link></span>
+        </div>
+      )}
       <Counters />
       <ErrorMessage error={error} />
       {!reports && !error && <Loading />}

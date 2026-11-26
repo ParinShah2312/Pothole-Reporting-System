@@ -1,6 +1,6 @@
 # Smart Civic Road Issue Reporting & AI-Based Pothole Verification System
 
-> **Status:** Phase 0 & 1 Completed (Full Demo Slice Live & Verified) · Next: Phase 2 (Production Services) & Phase 4 (YOLO Training)
+> **Status:** Phases 0–3 Completed (Full Public, Citizen, Gov & Admin Portals Live) · Next: Phase 4 (YOLO Dataset & Training)
 > **City:** Vadodara, Gujarat, India
 > **Team:** Parin Shah (23001091) · Ujjaval Rathod (23001113)
 
@@ -66,21 +66,22 @@ This combines the Notion workflows (A–I) into one status model.
         └──AI: uncertain──► [Under Review] ────────┘ admin approves (or rejects)
 
 [Assigned] ──gov──► [Repair In Progress] ──gov──► [Repair Completed] ──gov uploads completion photo──►
-        repair check (photo ≤ 50 m from report AND AI says repaired)
+        repair check (photo ≤ 50 m default [configurable] from report AND AI says repaired)
               ├── passed ──► [Solved]
-              └── failed ──► stays [Repair Completed]; gov fixes the issue and uploads a new photo
+              ├── escalated (gov note) ──► [Under Review] ──► admin override (Active / Solved / Rejected)
+              └── failed ──► stays [Repair Completed]; gov fixes the issue, retries, or escalates
 ```
 
 | Status | Meaning | Set by |
 |---|---|---|
 | Pending verification | Just submitted; AI check running | System |
-| Under review | AI result uncertain; an admin must decide | System (AI) |
-| Rejected | AI found no pothole (an admin can override) | System (AI) / admin |
-| Active | Verified pothole, waiting for action | System (AI) / admin |
+| Under review | AI result uncertain, or officer escalated repair check; admin must decide | System (AI) / Gov |
+| Rejected | AI found no pothole (an admin can override) | System (AI) / Admin |
+| Active | Verified pothole, waiting for action | System (AI) / Admin |
 | Assigned | Routed to a department | Government |
 | Repair in progress | Crew working on site | Government |
 | **Repair completed** | Government **says** the work is done; waiting for the completion photo to be **verified** | Government |
-| **Solved** | Repair **verified** (photo location and AI check passed); report closed, counters updated | System (AI) |
+| **Solved** | Repair **verified** (photo location and AI check passed, or admin override); report closed, counters updated | System (AI) / Admin |
 
 *Repair completed* and *Solved* are deliberately separate. This is the "verify again" step: a report only closes when the fix is confirmed, not when someone claims it is.
 
@@ -89,15 +90,15 @@ Every transition is written to **Status History**, recording who made the change
 ### Workflows (from Notion)
 | ID | Workflow | Summary |
 |---|---|---|
-| A | Registration / Login | Register (name, email, password), then validation and email verification (TBD); login goes to the dashboard, with a password reset option |
-| B | Report a Pothole | Map, then "Report a Problem", then an image (required), GPS or map-pin location, and an optional description. The report is saved as *Pending Verification* |
-| C | AI Verification (report) | Above threshold: Verified/Active and Active +1. Below: Rejected. Near threshold: manual review |
-| D | Government Review | Gov user opens a verified report, reviews it, and assigns it to a team or department, making it *Assigned* |
+| A | Registration / Login | Register (name, email, password), Zod validation & email verification (dev links now; SMTP/OTP planned for production); login with 15m JWT + 7d refresh rotation & 5-attempt lockout |
+| B | Report a Pothole | Map, then "Report a Problem", 1–5 photos, EXIF + GPS or map-pin location, and optional description. Report saved as *Pending Verification* |
+| C | AI Verification (report) | Above accept threshold (`0.60`): *Active* (+1 Active). Below reject (`0.40`): *Rejected*. In between: *Under Review* |
+| D | Government Review | Gov user filters verified reports, reviews details/flags, and assigns to a zone department (*Assigned*) |
 | E | Repair | *In Progress*, then *Repair Completed* |
-| F | Completion Submission | Gov uploads the after-repair photo, optionally confirms GPS, and submits for AI check |
-| G | AI Verification (repair) | (a) Same location as the original? (b) Is the pothole repaired? Uncertain results are flagged |
-| H | Resolution | Status becomes *Solved*: Active −1, Solved +1, Total unchanged; the citizen is notified (TBD); the report appears in public history |
-| I | Rejected Handling | Admin reviews rejected reports, then overrides (re-verified) or upholds |
+| F | Completion Submission | Gov captures after-repair photo within the visual `50 m` geo-fence circle and submits for AI check |
+| G | AI Verification (repair) | (a) Same location as the original (`<= 50 m` default)? (b) Is the pothole repaired? Failed checks allow retry or escalation to *Under Review* |
+| H | Resolution | Status becomes *Solved*: Active −1, Solved +1, Total unchanged; notification persisted in DB (*notification UI postponed*); report appears in public history |
+| I | Rejected / Review Handling | Admin reviews flagged, rejected, or escalated reports in `/admin/review`, then overrides (`active`/`solved`/`rejected`) or clears flags |
 
 ---
 
@@ -110,24 +111,23 @@ Solved = COUNT of reports with status = Solved
 Invariant: Total = Active + Solved
 ```
 - **Decided:** only AI-verified reports (or reports an admin approved) are counted. Pending Verification, Under Manual Review and Rejected reports are **never** counted, so Total never has to decrease.
-- Duplicates must be handled; possible approach: a nearby-report check using PostGIS distance.
-- Counter updates must be atomic with the status change to avoid race conditions.
-- Update mechanism (WebSockets / SSE / polling) is TBD.
+- Duplicates are flagged via PostGIS `ST_DWithin` (`25 m` default, configurable in `/admin/settings`).
+- Counter updates are computed directly from PostgreSQL and pushed live over Server-Sent Events (`GET /api/stats/stream`) with `15 s` polling fallback.
 
 ---
 
-## 6. Proposed Technology Stack (from presentation, pending confirmation)
+## 6. Technology Stack
 
 | Layer | Choice |
 |---|---|
-| Frontend | **React.js** |
-| Backend / API | **Node.js + Express** (REST) |
-| Database | **PostgreSQL + PostGIS** (geospatial queries, nearby or duplicate detection) |
-| Image storage | **Cloudinary** (AWS S3 as alternative) |
-| Maps | **Leaflet.js + OpenStreetMap** (free, with marker clustering) |
-| AI model | **YOLO-based detection** for potholes |
-| AI service | **Python + FastAPI** microservice (decided) |
-| Auth | **JWT**, role-based access control |
+| Frontend | **React 19 + Vite 8 + React Router 7** |
+| Backend / API | **Node.js + Express 5 + Zod + `exifr` + `express-rate-limit`** |
+| Database | **PostgreSQL + PostGIS** (geospatial queries, nearby/duplicate detection, `app_settings`) |
+| Image storage | **Local Disk (`server/uploads/` via Multer)** *(Cloudinary postponed)* |
+| Maps | **Leaflet.js + OpenStreetMap + `leaflet.markercluster` + Nominatim search** |
+| AI model | **YOLO-based detection** *(stub active until Phase 4 training)* |
+| AI service | **Python + FastAPI** microservice |
+| Auth | **JWT (15m) + rotating refresh tokens (7d)**, RBAC, lockout |
 
 **AI service (decided):** the YOLO model runs in a separate **Python FastAPI** service with its own **virtual environment (`venv`)**. The Node backend calls it over plain HTTP. We are not running the model inside Node (no ONNX) and not using a message queue.
 1. Node saves the report as *Pending Verification* and responds to the citizen immediately.
@@ -137,12 +137,12 @@ Invariant: Total = Active + Solved
 
 Until the model is trained in Phase 4, the FastAPI endpoint returns a **stub** result, so the citizen and government flows can be built and tested first.
 
-### High-level architecture (proposed)
+### High-level architecture
 ```
  ┌──────────────┐     ┌────────────────────┐     ┌──────────────────────┐
  │ React SPA    │────►│ Node/Express API   │────►│ PostgreSQL + PostGIS │
  │ Citizen +    │ JWT │ auth, RBAC, reports│     └──────────────────────┘
- │ Gov + Admin  │◄────│ counters, notifs   │────►  Cloudinary / S3 (images)
+ │ Gov + Admin  │◄────│ SSE stats, admin   │────►  server/uploads/ (local; Cloudinary postponed)
  │ Leaflet/OSM  │     └─────────┬──────────┘
  └──────────────┘               │ HTTP
                        ┌────────▼──────────┐
@@ -214,34 +214,33 @@ Relationships: User 1–N Report · Report 1–1 Location · Report 1–N Images
 
 ## 9. Screens (UI/UX plan)
 
-**Public:** Landing page (counters, map preview, CTAs) · Live Map (markers, status filter, clustering, search) · Statistics dashboard
-**Citizen:** Register/Login · Dashboard (My Reports and status badges) · Report Pothole (image, GPS or pin, description) · Report Details (image, location, status timeline, AI result) · Profile
-**Government:** Gov Login · Gov Dashboard (filtered list, map, summary, pending actions) · Problem Details (AI result, status controls, assign) · Repair Update · Completion Image Upload
-**Admin:** User management · Review queue (rejected and uncertain) · Audit logs · AI settings
+**Public:** Landing page (live SSE counters, map preview, CTAs) · Live Map (clustered markers, status filter, Nominatim search) · Statistics dashboard (`/stats`)
+**Citizen:** Register/Login · Verify Email (`/verify-email`) · Forgot/Reset Password (`/forgot-password`, `/reset-password`) · Dashboard (My Reports and status badges) · Report Pothole (1–5 images, GPS warning or pin, description) · Report Details (gallery, location, EXIF/spatial flags, status timeline, AI result) · Profile (`/citizen/profile`)
+**Government:** Gov Login · Gov Dashboard (`/gov` — filtered list, summary cards, map) · Problem Details (AI result, status controls, assign, live `50 m` completion capture & Admin escalation)
+**Admin:** Review queue (`/admin/review` — override / uphold) · User management (`/admin/users`) · Audit logs (`/admin/audit-logs`) · AI & spatial settings (`/admin/settings`)
 
 ---
 
 ## 10. Security & Privacy Checklist (summary)
 
-- Passwords hashed with bcrypt or Argon2; JWT with expiry and refresh; account lockout after failed attempts
-- RBAC enforced on the server for every endpoint, with a separate Government login
-- Image uploads: type and size validation, no executables, stored securely
+- Passwords hashed with bcryptjs; JWT short-lived access tokens (`15m`) with rotating refresh tokens (`7d`) and logout revocation; `5`-attempt `423 Locked` account lockout (`15 min`)
+- `zod` request validation, `express-rate-limit` (`authLimiter` & `uploadLimiter`), and server-enforced RBAC with a separate Government login
+- Image uploads: type and size validation ($\le 8\text{ MB}$, 1–5 images via Multer), stored locally in `server/uploads/` *(Cloudinary upload postponed)*
 - HTTPS, CORS, secrets kept in `.env` (never committed), input validation on client and server
-- SQL injection, XSS and CSRF protection
-- Location is read only after the user grants the browser's location permission; if they deny it, they can place the pin manually. No more location data is collected than needed.
-- Rate limiting on auth, report submission and uploads
+- SQL injection (100% parameterized `pg` queries), XSS and CSRF protection
+- Location is read only after the user grants the browser's location permission; if they deny it, they can place the pin manually. Embedded photo EXIF GPS is cross-checked (`exifr`) without blocking valid manual pins.
 - Audit logging of logins, submissions and status changes
 
 ---
 
 ## 11. Timeline (12 months, Agile / Scrum, 2–3 week sprints)
 
-| Phase | Work | Duration |
+| Phase | Work | Status / Duration |
 |---|---|---|
-| 1 | Requirements & Design | 1 month (**current**) |
-| 2 | Backend, DB & Citizen Portal | 2–3 months |
-| 3 | Map & Government Portal | 2 months |
-| 4 | AI Dataset, Training & Integration | 2–3 months |
+| 1 | Requirements & Design | 1 month (**completed**) |
+| 2 | Backend, DB & Citizen Portal | 2–3 months (**completed**) |
+| 3 | Map & Government Portal (+ Admin) | 2 months (**completed**) |
+| 4 | AI Dataset, Training & Integration | 2–3 months (**next**) |
 | 5 | Testing & Security Hardening | 1–2 months |
 | 6 | Integration, Docs & Deployment | 1 month |
 
@@ -249,22 +248,23 @@ Relationships: User 1–N Report · Report 1–1 Location · Report 1–N Images
 
 ## 12. Decisions
 
-### Decided
+### Decided & Phase 2 Scope Notes
 | Date | Decision |
 |---|---|
 | 2026-10-13 | **AI service:** a separate Python **FastAPI** microservice in its own `venv`, called by Node over HTTP. No ONNX-in-Node and no message queue. It returns a stub result until the model is trained. |
 | 2026-10-13 | **Counters:** count only AI-verified or admin-approved reports. Pending, Under Review and Rejected reports are excluded. |
-| 2026-10-13 | **Location:** device GPS at capture time is primary; the user can adjust the pin; a large pin move is flagged, not blocked; EXIF GPS is an optional cross-check only; rule-based checks cover the city boundary, nearness to a road, GPS accuracy and duplicates. |
-| 2026-10-13 | **Repair "same location":** the completion photo must be taken live within about 30–50 m of the original report. Image similarity may be added later. |
-| 2026-11-26 | **Email verification:** Accounts can register and browse freely, but email verification is required before a citizen can submit a pothole report. |
-| 2026-11-26 | **Report images:** Multiple images allowed per report — minimum 1, maximum 5 photos ($\le 8\text{ MB}$ each). |
-| 2026-11-26 | **Notifications:** In-app notification center for Phase 2/3 (email delivery deferred). |
+| 2026-10-13 | **Location:** device GPS at capture time is primary; the user can adjust the pin; a large pin move is flagged, not blocked; EXIF GPS is extracted server-side (`exifr`) as a cross-check (`exif_mismatch`); rule-based checks cover the city boundary, nearness to a road, GPS accuracy and duplicates (`ST_DWithin`). |
+| 2026-10-13 | **Repair "same location":** the completion photo must be taken live within `50 m` default (`REPAIR_RADIUS_M`, configurable in `/admin/settings`) of the original report (`ST_Distance`). Image similarity may be added later. |
+| 2026-11-26 | **Email verification:** Accounts can register and browse freely, but `email_verified = true` is required before submitting a pothole report (`POST /api/reports`). |
+| 2026-11-26 | **Report images & storage:** Multiple images supported per report (1–5 photos, $\le 8\text{ MB}$ each). **Cloudinary cloud storage is postponed** — uploads remain stored on local `server/uploads/` disk for now. |
+| 2026-11-26 | **In-app notifications (postponed):** The `notifications` table exists in PostgreSQL, while notification API endpoints and UI Notification Center are postponed. |
 | 2026-11-26 | **AI dataset:** Dataset selection and training (Pothole-600 / RDD2022) deferred to Phase 4. |
+| 2026-11-27 | **Dev-mode verification & reset links vs. future SMTP/OTP:** Local builds issue single-use `auth_tokens` via clickable dev links (`devVerifyUrl` / `devResetUrl` and server logs) so 1-click verification and password reset work without external email credentials. **Future improvement:** Send real outbound emails via SMTP containing either an OTP code or an emailed verification/reset link. |
+| 2026-11-27 | **Real-time counters & configurable thresholds:** Live KPI cards stream via Server-Sent Events (`GET /api/stats/stream` + `15 s` polling fallback), and AI/spatial thresholds persist dynamically in `app_settings` (`/admin/settings`). |
 
 ### Still open
 - [ ] Confirm exact AI confidence thresholds after model validation (Phase 4)
 - [ ] Multi-department / Ward boundary polygon auto-routing
-- [ ] Counter update mechanism (WebSockets vs. SSE vs. Polling for Phase 3)
 - [ ] Citizen appeal / dispute process for rejected reports
 - [ ] Production hosting platform (Render/Vercel/Supabase)
 
@@ -274,24 +274,25 @@ Relationships: User 1–N Report · Report 1–1 Location · Report 1–N Images
 
 ```
 MAJOR/
-├── client/                 # React (Vite) — citizen, government and admin UIs
+├── client/                 # React (Vite) — public, citizen, government and admin UIs
 │   ├── public/
 │   └── src/
 │       ├── pages/          # public/ auth/ citizen/ government/ admin/
-│       ├── components/     # common/ layout/ map/
+│       ├── components/     # common/ layout/ map/ report/
 │       ├── routes/ services/ context/ hooks/ utils/ styles/ assets/
 ├── server/                 # Node.js + Express REST API
 │   ├── src/
 │   │   ├── config/ routes/ controllers/ services/
 │   │   ├── repositories/   # SQL (PostgreSQL + PostGIS)
-│   │   ├── middleware/ validators/ utils/
-│   └── tests/
+│   │   ├── middleware/ validation/ utils/
+│   └── tests/              # phase2.test.js, phase3.test.js
 ├── ai-service/             # Python FastAPI + YOLO (own venv)
 │   ├── app/                # routers/ services/ schemas/ core/
 │   ├── training/           # notebooks/ scripts/
 │   ├── weights/ datasets/  # not committed
 │   └── tests/
-├── database/               # migrations/ seeds/ queries/
+├── database/               # migrations/ (001–003), queries/
+├── scripts/                # sync_to_notion.mjs, notion.mjs
 ├── docs/                   # diagrams/ reports/ presentations/
 ├── .gitignore
 └── README.md
@@ -303,15 +304,15 @@ Each folder has its own `README.md` describing its subfolders. Copy each `.env.e
 ### Database (installed locally)
 | Item | Value |
 |---|---|
-| PostgreSQL | **16.x** (Windows service, port **5432**) — `C:\Program Files\PostgreSQL\16` |
-| PostGIS | **3.4.x Bundle** |
+| PostgreSQL | **17.x** (Windows service, port **5432**) — `C:\Program Files\PostgreSQL\17` |
+| PostGIS | **3.x Bundle** |
 | Database | `pothole_db` (PostGIS extension enabled) |
 | Dev user / password | `postgres` / `postgres` (**local dev only**; never use this for a hosted DB) |
 | Connection URL | `postgresql://postgres:postgres@localhost:5432/pothole_db` |
 
-> **Windows PostGIS Note:** If `postgis-3.dll` fails to load with module not found, ensure `libwinpthread-1.dll` (from Git `C:\Program Files\Git\mingw64\bin\`) is copied to `C:\Program Files\PostgreSQL\16\bin\` and restart the `postgresql-x64-16` service.
+> **Windows PostGIS Note:** If `postgis-3.dll` fails to load with module not found, ensure `libwinpthread-1.dll` (from Git `C:\Program Files\Git\mingw64\bin\`) is copied to `C:\Program Files\PostgreSQL\17\bin\` and restart the `postgresql-x64-17` service.
 
-`psql` is at `C:\Program Files\PostgreSQL\16\bin\psql.exe`. Add that `bin` folder to PATH to use `psql` directly.
+`psql` is at `C:\Program Files\PostgreSQL\17\bin\psql.exe`. Add that `bin` folder to PATH to use `psql` directly.
 We may move to a hosted PostGIS database (e.g. Neon or Supabase) later; only `DATABASE_URL` needs to change.
 
 ### Environment files
@@ -329,6 +330,7 @@ cd ai-service && python -m venv venv && venv\Scripts\pip install -r requirements
 ```bash
 npm run dev          # Starts AI service :8000, API :5000, web app :5173. Open http://localhost:5173
 npm run db:reset     # DEV ONLY: wipe the database, run migrations, and reload the demo data
+npm --prefix server test  # Run automated backend tests (Phase 2 & 3 suites, 6/6 passing)
 npm run sync:notion  # Syncs latest project status, modules, APIs & tests directly to Notion
 ```
 

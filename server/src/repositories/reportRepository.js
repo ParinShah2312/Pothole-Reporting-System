@@ -7,7 +7,7 @@ const point = (lngParam, latParam) =>
 const REPORT_SELECT = `
   SELECT r.report_id AS id, r.status, r.description, r.address,
          ST_Y(r.location::geometry) AS lat, ST_X(r.location::geometry) AS lng,
-         r.location_source, r.gps_accuracy_m, r.pin_moved_m, r.location_flags,
+         r.location_source, r.gps_accuracy_m, r.pin_moved_m, r.exif_lat, r.exif_lng, r.location_flags,
          r.department_id, d.name AS department_name,
          r.citizen_id, u.name AS citizen_name,
          r.verified_at, r.solved_at, r.created_at, r.updated_at,
@@ -19,12 +19,15 @@ const REPORT_SELECT = `
 export async function insertReport(db, r) {
   const { rows } = await db.query(
     `INSERT INTO reports (citizen_id, description, location, location_source,
-                          gps_lat, gps_lng, gps_accuracy_m, pin_moved_m)
+                          gps_lat, gps_lng, gps_accuracy_m, pin_moved_m, exif_lat, exif_lng)
      VALUES ($1, $2, ${point('$4', '$3')}, $5, $6, $7, $8,
              CASE WHEN $6::float8 IS NULL OR $7::float8 IS NULL THEN NULL
-                  ELSE ST_Distance(${point('$4', '$3')}, ${point('$7', '$6')}) END)
-     RETURNING report_id AS id, pin_moved_m`,
-    [r.citizenId, r.description, r.lat, r.lng, r.locationSource, r.gpsLat, r.gpsLng, r.gpsAccuracyM],
+                  ELSE ST_Distance(${point('$4', '$3')}, ${point('$7', '$6')}) END,
+             $9, $10)
+     RETURNING report_id AS id, pin_moved_m,
+               CASE WHEN $9::float8 IS NULL OR $10::float8 IS NULL THEN NULL
+                    ELSE ST_Distance(${point('$4', '$3')}, ${point('$10', '$9')}) END AS exif_distance_m`,
+    [r.citizenId, r.description, r.lat, r.lng, r.locationSource, r.gpsLat, r.gpsLng, r.gpsAccuracyM, r.exifLat, r.exifLng],
   );
   return rows[0];
 }
@@ -57,8 +60,8 @@ export async function listForMap() {
   const { rows } = await query(
     `${REPORT_SELECT} WHERE r.verified_at IS NOT NULL ORDER BY r.created_at DESC`,
   );
-  // Public view: hide who reported it and how the location was captured
-  return rows.map(({ citizen_id, citizen_name, gps_accuracy_m, pin_moved_m, location_flags, location_source, ...rest }) => rest);
+  // Public view: hide who reported it and fine location/EXIF metadata
+  return rows.map(({ citizen_id, citizen_name, gps_accuracy_m, pin_moved_m, exif_lat, exif_lng, location_flags, location_source, ...rest }) => rest);
 }
 
 export async function listByCitizen(citizenId) {
@@ -66,12 +69,39 @@ export async function listByCitizen(citizenId) {
   return rows;
 }
 
-export async function listForGovernment({ status } = {}) {
+export async function listForGovernment({ status, departmentId, from, to, q, flagged } = {}) {
   const params = [];
   let where = 'WHERE r.verified_at IS NOT NULL';
   if (status) {
     params.push(status);
     where += ` AND r.status = $${params.length}`;
+  }
+  if (departmentId) {
+    params.push(departmentId);
+    where += ` AND r.department_id = $${params.length}`;
+  }
+  if (from) {
+    params.push(from);
+    where += ` AND r.created_at >= $${params.length}::date`;
+  }
+  if (to) {
+    params.push(to);
+    where += ` AND r.created_at < ($${params.length}::date + interval '1 day')`;
+  }
+  if (q) {
+    const trimmed = q.trim().replace(/^#/, '');
+    const numericId = /^\d+$/.test(trimmed) ? Number(trimmed) : null;
+    params.push(`%${q.trim()}%`);
+    const likeIdx = params.length;
+    if (numericId) {
+      params.push(numericId);
+      where += ` AND (r.report_id = $${params.length} OR COALESCE(r.address, '') ILIKE $${likeIdx} OR COALESCE(r.description, '') ILIKE $${likeIdx})`;
+    } else {
+      where += ` AND (COALESCE(r.address, '') ILIKE $${likeIdx} OR COALESCE(r.description, '') ILIKE $${likeIdx} OR u.name ILIKE $${likeIdx})`;
+    }
+  }
+  if (flagged) {
+    where += ' AND COALESCE(array_length(r.location_flags, 1), 0) > 0';
   }
   const { rows } = await query(`${REPORT_SELECT} ${where} ORDER BY r.created_at DESC`, params);
   return rows;
@@ -189,4 +219,22 @@ export async function listDepartments() {
 export async function departmentExists(id) {
   const { rows } = await query('SELECT 1 FROM departments WHERE dept_id = $1', [id]);
   return rows.length > 0;
+}
+
+export async function listReviewQueue({ scope = 'attention' } = {}) {
+  const where = scope === 'all'
+    ? ''
+    : `WHERE r.status IN ('under_review', 'rejected') OR COALESCE(array_length(r.location_flags, 1), 0) > 0`;
+  const { rows } = await query(
+    `SELECT sub.*,
+            (SELECT json_build_object('result', av.result, 'confidence', av.confidence, 'type', av.type, 'verified_at', av.verified_at)
+             FROM ai_verifications av WHERE av.report_id = sub.id ORDER BY av.verified_at DESC, av.ai_id DESC LIMIT 1) AS latest_ai
+     FROM (${REPORT_SELECT} ${where}) sub
+     ORDER BY CASE sub.status WHEN 'under_review' THEN 0 WHEN 'rejected' THEN 1 ELSE 2 END, sub.created_at DESC`,
+  );
+  return rows;
+}
+
+export async function clearLocationFlags(db, reportId) {
+  await db.query("UPDATE reports SET location_flags = '{}', updated_at = now() WHERE report_id = $1", [reportId]);
 }

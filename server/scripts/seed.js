@@ -60,8 +60,8 @@ export async function seed() {
     for (const u of DEMO_USERS) {
       const hash = await bcrypt.hash(u.password, 10);
       const { rows } = await db.query(
-        `INSERT INTO users (name, email, password_hash, role, department_id) VALUES ($1, $2, $3, $4, $5)
-         ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash RETURNING user_id AS id`,
+        `INSERT INTO users (name, email, password_hash, role, department_id, email_verified) VALUES ($1, $2, $3, $4, $5, true)
+         ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash, email_verified = true RETURNING user_id AS id`,
         [u.name, u.email, hash, u.role, u.dept ? deptIds[u.dept] : null],
       );
       userIds[u.role] = rows[0].id;

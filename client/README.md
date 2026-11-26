@@ -9,7 +9,7 @@ Citizen, Government and Admin UIs in one React app (Vite), with role-based route
 | `src/pages/citizen` | Dashboard, report pothole, report details, profile |
 | `src/pages/government` | Dashboard, problem details, repair update, completion upload |
 | `src/pages/admin` | User management, review queue, audit logs, AI settings |
-| `src/components` | Reusable UI (`common`), page shells (`layout`), Leaflet map pieces (`map`) |
+| `src/components` | Reusable UI (`common`, `layout`, `map`, `report`) |
 | `src/routes` | Router setup and role-protected routes |
 | `src/services` | API client (calls to the Express backend) |
 | `src/context` | Auth/user context |

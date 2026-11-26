@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import LocationPicker from '../../components/map/LocationPicker.jsx';
+import LocationPicker, { GpsAccuracyBanner } from '../../components/map/LocationPicker.jsx';
 import { ErrorMessage } from '../../components/common/Feedback.jsx';
 import { useGeolocation } from '../../hooks/useGeolocation.js';
 import { api } from '../../services/api.js';
@@ -41,13 +41,17 @@ function LocationStep({ geo, manual, setManual }) {
   );
 }
 
+const MAX_PHOTOS = 5;
+const MAX_BYTES = 8 * 1024 * 1024;
+
 export default function ReportPothole() {
   const geo = useGeolocation();
   const navigate = useNavigate();
   const [manual, setManual] = useState(false);
   const [pin, setPin] = useState(null);
-  const [photo, setPhoto] = useState(null);
-  const [preview, setPreview] = useState(null);
+  const [photos, setPhotos] = useState([]);
+  const [previews, setPreviews] = useState([]);
+  const [photoError, setPhotoError] = useState(null);
   const [description, setDescription] = useState('');
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -63,23 +67,45 @@ export default function ReportPothole() {
     if (showMap && !pin) setPin({ lat: MAP_CENTER[0], lng: MAP_CENTER[1] });
   }, [showMap, pin]);
 
-  useEffect(() => () => preview && URL.revokeObjectURL(preview), [preview]);
+  useEffect(() => {
+    const urls = photos.map((file) => ({ name: file.name, url: URL.createObjectURL(file) }));
+    setPreviews(urls);
+    return () => urls.forEach((u) => URL.revokeObjectURL(u.url));
+  }, [photos]);
 
-  const onPhoto = (e) => {
-    const file = e.target.files?.[0];
-    setPhoto(file || null);
-    setPreview(file ? URL.createObjectURL(file) : null);
+  const onPhotos = (e) => {
+    const selected = Array.from(e.target.files || []);
+    e.target.value = '';
+    if (!selected.length) return;
+    setPhotoError(null);
+
+    const oversized = selected.find((f) => f.size > MAX_BYTES);
+    if (oversized) {
+      setPhotoError(`"${oversized.name}" exceeds the 8 MB limit per photo.`);
+      return;
+    }
+
+    const merged = [...photos, ...selected];
+    if (merged.length > MAX_PHOTOS) {
+      setPhotoError(`You can upload up to ${MAX_PHOTOS} photos per report.`);
+    }
+    setPhotos(merged.slice(0, MAX_PHOTOS));
+  };
+
+  const removePhoto = (index) => {
+    setPhotoError(null);
+    setPhotos((prev) => prev.filter((_, i) => i !== index));
   };
 
   const moved = geo.position && pin ? distanceM(geo.position, pin) : null;
 
   const onSubmit = async (e) => {
     e.preventDefault();
-    if (!pin || !photo) return;
+    if (!pin || !photos.length) return;
     setBusy(true);
     setError(null);
     const form = new FormData();
-    form.append('image', photo);
+    photos.forEach((file) => form.append('images', file));
     form.append('lat', pin.lat);
     form.append('lng', pin.lng);
     if (geo.position) {
@@ -113,6 +139,7 @@ export default function ReportPothole() {
               {moved != null && moved > 5 && <span>Pin is {formatMetres(moved)} from your GPS location</span>}
               {geo.status === 'granted' && <button type="button" className="link" onClick={geo.request}>Refresh location</button>}
             </div>
+            <GpsAccuracyBanner accuracy={geo.position?.accuracy} />
             {moved != null && moved > PIN_MOVE_WARN_M && (
               <div className="alert alert-warn">
                 The pin is far from where you are. That's fine if you're reporting a pothole you passed earlier, but the
@@ -124,11 +151,38 @@ export default function ReportPothole() {
       </section>
 
       <section className="card">
-        <h2><span className="step-no">2</span> Photo</h2>
-        <label className="photo-input">
-          <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={onPhoto} required />
-          {preview ? <img src={preview} alt="Selected pothole" /> : <span>📷 Take a photo of the pothole<small>JPEG, PNG or WebP · up to 8 MB</small></span>}
-        </label>
+        <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+          <h2><span className="step-no">2</span> Photos</h2>
+          <span className="muted">{photos.length} / {MAX_PHOTOS} selected</span>
+        </div>
+        {photos.length < MAX_PHOTOS && (
+          <label className="photo-input">
+            <input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={onPhotos} />
+            <span>
+              📷 {photos.length ? 'Add more photos' : 'Take or choose 1–5 photos of the pothole'}
+              <small>JPEG, PNG or WebP · up to 8 MB each · camera EXIF GPS read automatically if present</small>
+            </span>
+          </label>
+        )}
+        {photoError && <div className="alert alert-warn" style={{ marginTop: 10 }}>{photoError}</div>}
+        {previews.length > 0 && (
+          <div className="photo-previews">
+            {previews.map((p, i) => (
+              <div key={p.url} className="photo-thumb">
+                <img src={p.url} alt={p.name} />
+                <button
+                  type="button"
+                  className="photo-remove"
+                  onClick={() => removePhoto(i)}
+                  aria-label={`Remove ${p.name}`}
+                  title="Remove photo"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
 
       <section className="card">
@@ -143,7 +197,7 @@ export default function ReportPothole() {
       </section>
 
       <ErrorMessage error={error} />
-      <button className="btn btn-primary btn-lg" disabled={busy || !pin || !photo}>
+      <button className="btn btn-primary btn-lg" disabled={busy || !pin || !photos.length}>
         {busy ? 'Submitting…' : 'Submit report'}
       </button>
       {!pin && <p className="muted center">Set a location to continue.</p>}

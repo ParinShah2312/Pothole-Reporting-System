@@ -49,7 +49,7 @@ export default function Login({ portal = 'citizen' }) {
       {isGov ? (
         <p className="muted">Citizen? <Link to="/login">Use the citizen login</Link></p>
       ) : (
-        <p className="muted">New here? <Link to="/register">Create an account</Link> · Staff? <Link to="/gov/login">Government login</Link></p>
+        <p className="muted">New here? <Link to="/register">Create an account</Link> · <Link to="/forgot-password">Forgot password?</Link> · Staff? <Link to="/gov/login">Government login</Link></p>
       )}
     </div>
   );

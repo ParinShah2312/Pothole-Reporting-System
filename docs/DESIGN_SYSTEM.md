@@ -2,7 +2,7 @@
 
 > **Project:** Smart Civic Road Issue Reporting & AI-Based Pothole Verification System  
 > **Target Region:** Vadodara, Gujarat, India  
-> **Frontend Stack:** React 19, Vite 8, React-Leaflet, CSS Custom Properties
+> **Frontend Stack:** React 19, Vite 8, React-Leaflet 5, `leaflet.markercluster` 2.0, CSS Custom Properties
 
 ---
 
@@ -56,18 +56,18 @@ Defined centrally via CSS custom properties in `client/src/styles/global.css`:
 
 ### 3.2 Status & Lifecycle Tokens
 
-The color system clearly communicates the urgency and progress of road repairs on both map markers and badge chips:
+The color system clearly communicates the urgency and progress of road repairs on both map markers (`client/src/utils/status.js`) and badge chips:
 
-| Status Key | Label | Color Token | Hex Code | Visual Meaning |
+| Status Key | Label | Color Theme | Hex Code (`status.js`) | Visual Meaning |
 |---|---|---|---|---|
-| `pending_verification` | Pending Verification | Neutral Gray | `#64748b` | Submitted; awaiting AI initial inspection |
-| `under_review` | Under Review | Warning Amber | `#f59e0b` | AI confidence borderline; flagged for admin review |
-| `rejected` | Rejected | Crimson Red | `#ef4444` | AI or admin determined no valid pothole |
-| `active` | Active | Urgent Red | `#ef4444` | Verified genuine pothole; awaiting municipal assignment |
-| `assigned` | Assigned | Deep Orange | `#f97316` | Assigned to a specific Ward / Zone department |
-| `in_progress` | Repair in Progress | Gold / Amber | `#eab308` | Repair crew deployed on site |
-| `repair_completed` | Repair Completed | Tech Blue | `#3b82f6` | Work finished; awaiting after-photo AI verification |
-| `solved` | Solved | Emerald Green | `#10b981` | Verified repaired by AI and GPS; closed |
+| `pending_verification` | Pending verification | Cool Slate | `#7a8594` | Submitted; awaiting AI initial inspection |
+| `under_review` | Under review | Warm Ochre | `#b7791f` | AI confidence borderline or flagged for admin review |
+| `rejected` | Rejected | Muted Crimson | `#8c3b3b` | AI or admin determined no valid pothole |
+| `active` | Active | Urgent Red | `#d64545` | Verified genuine pothole; awaiting municipal assignment |
+| `assigned` | Assigned | Burnt Orange | `#dd6b20` | Assigned to a specific Zone department |
+| `in_progress` | Repair in progress | Gold / Amber | `#d69e2e` | Repair crew deployed on site |
+| `repair_completed` | Repair completed | Civic Blue | `#3182ce` | Work finished; awaiting after-photo AI verification |
+| `solved` | Solved | Emerald Green | `#2f855a` | Verified repaired by AI and GPS; closed |
 
 ---
 
@@ -77,23 +77,26 @@ The color system clearly communicates the urgency and progress of road repairs o
 - **Container Max-Width:** `1180px` centered with `16px` padding.
 - **Card Radius:** `14px` (`--radius: 14px;`), `20px` for large cards (`--radius-lg: 20px;`).
 - **Elevation / Shadow System:** Multi-tier soft shadows (`--shadow-sm`, `--shadow`, `--shadow-md`, `--shadow-lg`, and primary ambient `--shadow-glow`).
+- **Analytics & Summary Grids:** `.gov-summary` 4-card workload strip (`.mini-stat`), `.trend-bars` daily Reported (`#2563eb`) vs. Solved (`#059669`) bar chart on `/stats`, and `.settings-grid` 2-column threshold controls.
 
 ### 4.2 Interactive Elements
 - **Buttons (`.btn`):** `8px` rounded corners, `0.6rem 1.1rem` padding, bold text.
 - **Form Controls:** Full width, `8px` border radius, subtle hover stroke, focus ring: `2px solid color-mix(in srgb, var(--primary) 40%, transparent)`.
-- **Status Badges (`.badge`):** Pill-shaped (`999px`), light color-mix background, circular status indicator dot.
+- **Status & Flag Badges (`.badge`, `.flag-pill`):** Pill-shaped (`999px`) status pills plus amber warning pills for EXIF/location flags.
+- **Live Indicator (`.live-pill`):** Subtle emerald `#059669` `● Live` badge on real-time SSE counter cards.
 
 ### 4.3 Responsive Breakpoints
-- **Desktop (> 900px):** Two-column split grids for hero, details page, and government triage view.
-- **Tablet (561px – 900px):** Single-column dashboard layouts; step cards fold into 2-column grids.
-- **Mobile ($\le$ 560px):** Full-width stacked forms, single-column counters, optimized tap targets ($\ge 44\text{px}$) for outdoor phone usage.
+- **Desktop (`> 960px`):** Two-column split grids for hero, details page, and government triage view; 4-column `.gov-summary`.
+- **Tablet (`641px – 960px`):** Single-column split grids; `.gov-summary` folds to `2×2` and step cards fold to `3` columns.
+- **Mobile (`<= 640px`):** Full-width stacked forms, single-column counters and settings forms, optimized tap targets for outdoor phone usage.
 
 ---
 
 ## 5. Map & Geolocation Design Specs
 
 - **Tile Provider:** OpenStreetMap via Leaflet (`https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png`).
-- **Default City Coordinates:** Latitude `22.3072`, Longitude `73.1812` (Vadodara center), default zoom `12`.
-- **Camera Capture:** Triggered via `<input type="file" accept="image/*" capture="environment">` ensuring direct native camera activation on iOS and Android devices.
-- **Accuracy Feedback:** Blue semi-transparent radius circle indicating GPS margin of error ($\pm X\text{ meters}$).
-- **Pin Move Warning:** Visual amber notification when manual pin exceeds $200\text{ meters}$ from detected hardware GPS.
+- **Default City Coordinates:** Latitude `22.3072`, Longitude `73.1812` (Vadodara center), default zoom `13`.
+- **Marker Clustering & Search:** `leaflet.markercluster` groups nearby issues into density-colored `.cluster-badge` circles (`.cluster-sm` `#2563eb`, `.cluster-md` `#d97706`, `.cluster-lg` `#dc2626`); OpenStreetMap Nominatim search toolbar (`.map-toolbar`, `.map-search`) pans smoothly via `flyTo`.
+- **Camera Capture:** Triggered via `<input type="file" accept="image/jpeg,image/png,image/webp" capture="environment">` on completion photos and `1–5` multi-photo picker on citizen reports.
+- **Accuracy Feedback & Geo-Fence:** Blue `#3182ce` accuracy ring when `<= 25 m`, shifting to warning amber `#d97706` with weak-GPS alerts above `25 m` / `100 m`; completion map overlays a green dashed `#059669` `50 m` geo-fence circle around the target report pin.
+- **Pin Move Warning:** Visual amber alert when manual pin exceeds configured pin-move threshold (`200 m` default) from detected hardware GPS.

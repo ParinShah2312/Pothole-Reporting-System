@@ -16,10 +16,14 @@ export const env = {
   clientUrl: process.env.CLIENT_URL || 'http://localhost:5173',
   databaseUrl: required('DATABASE_URL'),
   jwtSecret: required('JWT_SECRET'),
-  jwtExpiresIn: process.env.JWT_EXPIRES_IN || '1d',
+  jwtExpiresIn: process.env.JWT_EXPIRES_IN || '15m',
+  jwtRefreshExpiresDays: num('JWT_REFRESH_EXPIRES_DAYS', 7),
+  maxLoginAttempts: num('MAX_LOGIN_ATTEMPTS', 5),
+  lockoutMinutes: num('LOCKOUT_MINUTES', 15),
   aiServiceUrl: process.env.AI_SERVICE_URL || 'http://localhost:8000',
   uploadDir: process.env.UPLOAD_DIR || 'uploads',
   maxUploadMb: num('MAX_UPLOAD_MB', 8),
+  maxImagesPerReport: num('MAX_IMAGES_PER_REPORT', 5),
 
   // AI decision thresholds (pothole confidence)
   aiAcceptThreshold: num('AI_ACCEPT_THRESHOLD', 0.6),
@@ -30,4 +34,5 @@ export const env = {
   lowGpsAccuracyM: num('LOW_GPS_ACCURACY_M', 100),
   duplicateRadiusM: num('DUPLICATE_RADIUS_M', 25),
   repairRadiusM: num('REPAIR_RADIUS_M', 50),
+  exifMismatchM: num('EXIF_MISMATCH_M', 200),
 };

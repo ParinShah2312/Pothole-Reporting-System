@@ -61,10 +61,12 @@ export default function ReportDetailsView({ report, showFlags = false, children 
         <section className="card">
           <h2>Photos</h2>
           <div className="photos">
-            {report.images.map((img) => (
+            {report.images.map((img, idx) => (
               <figure key={img.id}>
-                <img src={img.url} alt="Reported pothole" />
-                <figcaption>Citizen photo</figcaption>
+                <img src={img.url} alt={`Reported pothole ${idx + 1}`} />
+                <figcaption>
+                  {report.images.length > 1 ? `Citizen photo ${idx + 1} of ${report.images.length}` : 'Citizen photo'}
+                </figcaption>
               </figure>
             ))}
             {report.completionImages.map((img) => (
@@ -87,7 +89,12 @@ export default function ReportDetailsView({ report, showFlags = false, children 
             <dt>Captured by</dt><dd>{report.location_source === 'gps' ? 'GPS + map pin' : 'Manual map pin'}</dd>
             {report.gps_accuracy_m != null && <><dt>GPS accuracy</dt><dd>± {formatMetres(report.gps_accuracy_m)}</dd></>}
             {report.pin_moved_m != null && <><dt>Pin moved</dt><dd>{formatMetres(report.pin_moved_m)} from GPS</dd></>}
+            {report.exif_lat != null && report.exif_lng != null && (
+              <><dt>Photo EXIF GPS</dt><dd>{Number(report.exif_lat).toFixed(5)}, {Number(report.exif_lng).toFixed(5)}</dd></>
+            )}
             {report.department_name && <><dt>Department</dt><dd>{report.department_name}</dd></>}
+            {report.repair?.notes && <><dt>Repair notes</dt><dd>{report.repair.notes}</dd></>}
+            {report.repair?.assigned_by_name && <><dt>Assigned by</dt><dd>{report.repair.assigned_by_name}</dd></>}
           </dl>
           {showFlags && report.location_flags?.length > 0 && (
             <div className="alert alert-warn">

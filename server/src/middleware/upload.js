@@ -15,11 +15,28 @@ const storage = multer.diskStorage({
   filename: (_req, file, cb) => cb(null, `${crypto.randomUUID()}${ALLOWED[file.mimetype]}`),
 });
 
-export const uploadImage = multer({
+const baseMulter = multer({
   storage,
-  limits: { fileSize: env.maxUploadMb * 1024 * 1024, files: 1 },
+  limits: { fileSize: env.maxUploadMb * 1024 * 1024, files: env.maxImagesPerReport },
   fileFilter: (_req, file, cb) =>
     ALLOWED[file.mimetype] ? cb(null, true) : cb(badRequest('Only JPEG, PNG or WebP images are allowed')),
-}).single('image');
+});
+
+// Single image (e.g. government completion proof)
+export const uploadImage = baseMulter.single('image');
+
+// Multi-photo report intake: accepts 1..maxImagesPerReport under `images` (or legacy single `image`)
+export const uploadReportImages = baseMulter.fields([
+  { name: 'images', maxCount: env.maxImagesPerReport },
+  { name: 'image', maxCount: 1 },
+]);
+
+export function uploadedFilesFrom(req) {
+  if (Array.isArray(req.files)) return req.files;
+  if (req.files && typeof req.files === 'object') {
+    return [...(req.files.images || []), ...(req.files.image || [])];
+  }
+  return req.file ? [req.file] : [];
+}
 
 export const publicUrlFor = (file) => `/uploads/${path.basename(file.path)}`;

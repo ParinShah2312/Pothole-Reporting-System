@@ -8,6 +8,7 @@ export const FLAG_LABELS = {
   manual_location: 'Location placed manually (no GPS)',
   pin_moved_far: 'Pin moved far from GPS location',
   low_gps_accuracy: 'Low GPS accuracy',
+  exif_mismatch: 'Photo EXIF GPS differs from chosen map pin',
   possible_duplicate: 'Possible duplicate of a nearby report',
 };
 

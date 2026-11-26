@@ -1,7 +1,7 @@
 # Phase-wise Implementation Plan
 
 > **Project:** Smart Civic Road Issue Reporting & AI-Based Pothole Verification System
-> **Status:** Draft v1 (2026-10-13). Edit freely; record changes in the Change Log at the bottom.
+> **Status:** Phase 3 Completed (2026-11-27) · Next: Phase 4 (AI Dataset & YOLO Training). Edit freely; record changes in the Change Log at the bottom.
 > **Related:** [README.md](README.md) holds the project description and design decisions. This file covers **how and in what order** we build it.
 
 **Approach:** Agile / Scrum with 2–3 week sprints, grouped into the six phases from the guide presentation. We build in **vertical slices**: each feature goes through database → API → UI at once, so something demonstrable exists at every checkpoint.
@@ -12,11 +12,11 @@
 
 | Phase | Name | Duration | Main output |
 |---|---|---|---|
-| 0 | **Demo Slice** (for the guide demo) | 1 day | End-to-end working loop with stubbed AI |
-| 1 | Requirements & Design (finish) | ~1 month (**current**) | ER diagram, API spec, wireframes, SRS |
-| 2 | Backend, Database & Citizen Portal | 2–3 months | Full citizen flow on real backend |
-| 3 | Map & Government Portal (+ Admin) | 2 months | Gov workflow, admin tools, full map |
-| 4 | AI Dataset, Training & Integration | 2–3 months | Trained YOLO model, location and repair verification |
+| 0 | **Demo Slice** (for the guide demo) | 1 day (**completed**) | End-to-end working loop with stubbed AI |
+| 1 | Requirements & Design (finish) | ~1 month (**completed**) | ER diagram, API spec, wireframes, locked SRS/SDS/Report |
+| 2 | Backend, Database & Citizen Portal | 2–3 months (**completed**) | Multi-photo + EXIF GPS, hardened JWT auth, lockout, citizen verify/reset/profile *(Cloudinary & Notifications postponed)* |
+| 3 | Map & Government Portal (+ Admin) | 2 months (**completed**) | Clustered map, Nominatim search, SSE counters, Gov filters & escalation, Admin portal, `/stats` |
+| 4 | AI Dataset, Training & Integration | 2–3 months (**next**) | Trained YOLO model, location and repair verification |
 | 5 | Testing & Security Hardening | 1–2 months | Test suite, security checklist complete |
 | 6 | Integration, Docs & Deployment | 1 month | Deployed system, final report |
 
@@ -221,83 +221,82 @@ If you get "port already in use", an old run is still open. Close it, or run `Ge
 
 ---
 
-## Phase 1: Requirements & Design (finish)
+## Phase 1: Requirements & Design ✅ completed
 
 **Goal:** close the open design decisions so later phases aren't blocked.
 
-- [ ] Finalise the **status list** and allowed transitions (README §4)
-- [ ] Final **database schema**: tables, columns, types, constraints and indexes, including the PostGIS geography index
-- [ ] **ER diagram**, exported to `docs/diagrams/`
-- [ ] **System architecture diagram**
-- [ ] **API specification**: every endpoint with method, path, role and request/response shape (draft list in Appendix A)
-- [ ] **Wireframes** for all screens (README §9)
-- [ ] Decide: single or multiple images per report, single department or wards, notification channels (in-app or email), email verification
-- [ ] Verify the **pothole dataset**: size, label format and licence
-- [ ] Write the **Synopsis** and **SRS** (in `docs/reports/`)
+- [x] Finalise the **status list** and allowed transitions (README §4)
+- [x] Final **database schema**: tables, columns, types, constraints and indexes, including the PostGIS geography index
+- [x] **ER diagram**, exported to `docs/diagrams/`
+- [x] **System architecture diagram**
+- [x] **API specification**: every endpoint with method, path, role and request/response shape
+- [x] **Wireframes** and UI screenshots in `docs/diagrams/`
+- [x] Decided: multiple images (1–5) per report, 4 Vadodara zone departments, email verification gate on reporting *(in-app notifications UI & Cloudinary postponed)*
+- [ ] Verify the **pothole dataset**: size, label format and licence *(scheduled for Phase 4)*
+- [x] Write the locked **SRS**, **SDS**, and **Project Report** (in `docs/reports/`)
 
-**Exit criteria:** the guide has signed off on the schema, API spec and wireframes.
+**Exit criteria:** Schema, API spec, wireframes, and formal SRS/SDS/Project Report completed.
 
 ---
 
-## Phase 2: Backend, Database & Citizen Portal
+## Phase 2: Backend, Database & Citizen Portal ✅ built 2026-11-27
 
 **Goal:** the complete citizen side on a production-quality backend.
 
 ### Backend
-- [ ] Migration tool set up (e.g. `node-pg-migrate`), and all tables from the final schema
-- [ ] Auth:
-  - [ ] register, login, logout
-  - [ ] JWT access and refresh tokens
-  - [ ] bcrypt password hashing
-  - [ ] email verification and password reset
-  - [ ] account lockout after repeated failed logins
-- [ ] Role-based access middleware (citizen / gov / admin)
-- [ ] Report API: create, get, list own, public list for the map (only verified reports)
-- [ ] **Cloudinary** image upload (type and size validation)
-- [ ] Status machine in one service: every change writes `status_history` and the `audit_log`
-- [ ] AI client: non-blocking call to FastAPI after the report is saved; updates status and counters
-- [ ] Counters: computed with a SQL `COUNT` query, with the Total = Active + Solved invariant tested
-- [ ] Duplicate check with `ST_DWithin` (radius configurable)
-- [ ] In-app notifications table and API
-- [ ] Input validation (e.g. `zod`/`joi`) and central error handling
+- [x] SQL migrations set up (`001_initial_schema.sql` + `002_auth_hardening.sql` with `refresh_tokens` and `auth_tokens`)
+- [x] Auth:
+  - [x] register, login, logout (token revocation via `refresh_tokens`)
+  - [x] JWT short-lived access tokens (`15m`) and rotating refresh tokens (`7d`)
+  - [x] bcrypt password hashing (`bcryptjs`)
+  - [x] email verification & password reset (`POST /api/auth/verify-email`, `resend-verification`, `forgot-password`, `reset-password`) — *currently issues dev-mode tokenized clickable links (`devVerifyUrl` / `devResetUrl` + console logs) for local testing; **future production enhancement:** integrate outbound SMTP email with OTP code or emailed verification/reset links*
+  - [x] account lockout after repeated failed logins (`5` failed attempts -> `423 Locked` for `15 minutes`)
+- [x] Role-based access middleware (citizen / gov / admin) + verified-email guard on citizen submission
+- [x] Report API: create, get, list own, public list for the map (only verified reports)
+- [x] Multi-photo upload (1–5 photos via Multer) + EXIF GPS extraction (`exifr`, `exif_lat`, `exif_lng`, `exif_mismatch` flag) — *(Note: **Cloudinary cloud upload is postponed**; photos remain stored locally in `server/uploads/`)*
+- [x] Status machine in one service: every change writes `status_history` and the `audit_log`
+- [x] AI client: non-blocking call to FastAPI after the report is saved; updates status and counters
+- [x] Counters: computed with a SQL `COUNT` query, with the Total = Active + Solved invariant tested
+- [x] Duplicate check with `ST_DWithin` (200 m radius)
+- [ ] In-app notifications table and API *(Schema created in PostgreSQL; **notifications API & Notification Center UI postponed** for now)*
+- [x] Input validation (`zod` schemas), rate limiting (`express-rate-limit` `authLimiter` / `uploadLimiter`), and central error handling
 
 ### Citizen portal
-- [ ] Landing page (counters, map preview, call-to-action buttons)
-- [ ] Register, login, verify email, reset password
-- [ ] Report Pothole page (live camera capture, location permission flow, manual-pin fallback, description)
-- [ ] Citizen dashboard (My Reports, status badges)
-- [ ] Report details (image, map location, status timeline, AI result)
-- [ ] Profile (edit details, change password)
-- [ ] Notifications list
+- [x] Landing page (counters, map preview, call-to-action buttons)
+- [x] Register, login, verify email (`/verify-email`), forgot/reset password (`/forgot-password`, `/reset-password`), silent refresh rotation
+- [x] Report Pothole page (live camera capture, 1–5 multi-photo preview, location permission flow, manual-pin fallback, description)
+- [x] Citizen dashboard (My Reports, status badges, email-verification status banner)
+- [x] Report details (multi-photo gallery, map location, EXIF & spatial flags, status timeline, AI result)
+- [x] Profile (`/citizen/profile` — edit display name & change password)
+- [ ] Notifications list *(Postponed alongside notifications API)*
 
-**Exit criteria:** a citizen can complete the whole reporting and tracking flow; API tests pass.
+**Exit criteria:** Citizen reporting, EXIF cross-check, auth hardening, and `npm --prefix server test` (`server/tests/phase2.test.js`) pass cleanly.
 
 ---
 
-## Phase 3: Map & Government Portal (+ Admin)
+## Phase 3: Map & Government Portal (+ Admin) ✅ built 2026-11-27
 
 ### Map
-- [ ] Live map: colour-coded markers by status, **marker clustering** (`leaflet.markercluster`), popup summary, status filter, location search (Nominatim)
-- [ ] Live counters (polling or SSE)
-- [ ] GPS accuracy circle and a warning when accuracy is poor
+- [x] Live map: colour-coded markers by status, **marker clustering** (`leaflet.markercluster`), popup summary, status filter, location search (OpenStreetMap Nominatim)
+- [x] Live counters (`GET /api/stats/stream` SSE + 15 s fallback polling)
+- [x] GPS accuracy circle (amber alert highlight) and weak-signal warning banner (`> 25 m` / `> 100 m`)
 
 ### Government portal
-- [ ] Separate government login (rejects citizen accounts)
-- [ ] Dashboard: report list with filters (status, date, area), map view, summary cards, pending actions
-- [ ] Problem details: images, location, AI result, status controls, assign to department or team
-- [ ] Repair update (status and notes)
-- [ ] Completion image upload: **live capture**, with GPS required near the report location
+- [x] Separate government login (rejects citizen accounts)
+- [x] Dashboard: report list with filters (status, department/zone, date range, area/#ID search, `flagged` filter), synchronized map view, workload summary cards
+- [x] Problem details: images, location, AI result, status controls, assign to department/team, repair notes
+- [x] Completion image upload: **live capture** (`capture="environment"`), preview thumbnail, visual `50 m` geo-fence circle, retry & Admin escalation (`under_review`)
 
 ### Admin
-- [ ] User management (create government users, suspend or remove accounts)
-- [ ] **Review queue:** rejected, uncertain-AI and location-flagged reports, with override or uphold
-- [ ] Audit log viewer
-- [ ] Settings: AI thresholds and distance thresholds (pin move, duplicate radius, repair radius)
+- [x] User management (`/admin/users` — list/filter users, create government/admin officers, suspend or activate accounts with refresh-token revocation)
+- [x] **Review queue** (`/admin/review` — `under_review`, `rejected`, and location-flagged reports with override to `active`/`solved`/`rejected` & flag clearance)
+- [x] Audit log viewer (`/admin/audit-logs`)
+- [x] Settings (`/admin/settings` — `003_admin_settings.sql` `app_settings` table for live AI thresholds & spatial radii)
 
 ### Stats
-- [ ] Statistics dashboard: trends over time and date filter
+- [x] Statistics dashboard (`/stats` + `GET /api/stats/trends` — time-series daily Reported vs. Solved chart, date range presets, status & zone workload breakdowns)
 
-**Exit criteria:** the full loop runs with real roles; only the AI is still stubbed.
+**Exit criteria:** Complete multi-role Citizen → Gov → Admin loop runs end-to-end and `npm --prefix server test` (`phase2.test.js` + `phase3.test.js` `6/6`) passes; only the AI weights remain stubbed for Phase 4.
 
 ---
 
@@ -355,25 +354,37 @@ If you get "port already in use", an old run is still open. Close it, or run `Ge
 
 ---
 
-## Appendix A: Draft API Endpoints
+## Appendix A: API Endpoints
 
 | Method | Path | Role | Purpose |
 |---|---|---|---|
-| POST | `/api/auth/register` | public | Citizen registration |
-| POST | `/api/auth/login` | public | Login (all roles) |
-| GET | `/api/auth/me` | any | Current user |
+| POST | `/api/auth/register` | public | Citizen registration (`authLimiter`) + issues verify token |
+| POST | `/api/auth/login` | public | Login (`authLimiter`, 5-attempt `423` lockout) |
+| POST | `/api/auth/refresh` | public | Rotate refresh token & issue new 15m access token |
+| POST | `/api/auth/logout` | public | Revoke refresh token session |
+| POST | `/api/auth/verify-email` | public | Verify citizen email via `auth_tokens` |
+| POST | `/api/auth/resend-verification` | any | Issue fresh verification link (`authLimiter`) |
+| POST | `/api/auth/forgot-password` | public | Request password reset link (`authLimiter`) |
+| POST | `/api/auth/reset-password` | public | Complete password reset & clear lockout |
+| GET | `/api/auth/me` | any | Current user profile |
+| PATCH | `/api/auth/profile` | any | Update current user name |
+| PATCH | `/api/auth/password` | any | Change password & revoke prior refresh sessions |
 | GET | `/api/stats/counters` | public | Total / Active / Solved |
+| GET | `/api/stats/stream` | public | Real-time SSE counter stream |
+| GET | `/api/stats/trends` | public | Daily trends, status & department breakdowns |
+| GET | `/api/settings/public` | public | Active spatial radius thresholds |
 | GET | `/api/reports/map` | public | Verified reports for the map |
-| POST | `/api/reports` | citizen | Submit report (image and location) |
+| POST | `/api/reports` | verified citizen | Submit report (1–5 images + EXIF GPS + location) |
 | GET | `/api/reports/mine` | citizen | Own reports |
-| GET | `/api/reports/:id` | owner / gov / admin | Report details and history |
-| GET | `/api/gov/reports` | gov | Filterable report list |
-| PATCH | `/api/gov/reports/:id/status` | gov | Assign or change status |
+| GET | `/api/reports/:id` | owner / gov / admin | Report details, multi-photo gallery and history |
+| GET | `/api/gov/reports` | gov | Filterable report list (`status`, `departmentId`, `from`, `to`, `q`, `flagged`) |
+| PATCH | `/api/gov/reports/:id/status` | gov | Assign, update progress, or escalate (`under_review`) |
 | POST | `/api/gov/reports/:id/completion` | gov | Upload completion image |
-| GET | `/api/admin/review-queue` | admin | Flagged or rejected reports |
-| PATCH | `/api/admin/reports/:id/override` | admin | Override status |
-| GET/POST/PATCH | `/api/admin/users` | admin | User management |
+| GET | `/api/admin/review-queue` | admin | Flagged, `under_review`, or rejected reports |
+| PATCH | `/api/admin/reports/:id/override` | admin | Override status & clear flags |
+| GET / POST / PATCH | `/api/admin/users` | admin | User management & officer provisioning |
 | GET | `/api/admin/audit-logs` | admin | Audit trail |
+| GET / PATCH | `/api/admin/settings` | admin | Runtime AI & spatial thresholds (`app_settings`) |
 
 **AI service (internal):** `GET /health`, `POST /detect/pothole`, `POST /verify/repair`
 
@@ -381,7 +392,7 @@ If you get "port already in use", an old run is still open. Close it, or run `Ge
 
 `pending_verification` → `active` → `assigned` → `in_progress` → `repair_completed` → `solved`
 
-Side states: `rejected`, `under_review` (uncertain AI or location flags).
+Side states: `rejected`, `under_review` (uncertain AI, location flags, or officer escalation).
 
 ---
 
@@ -392,3 +403,5 @@ Side states: `rejected`, `under_review` (uncertain AI or location flags).
 | 2026-10-13 | v1 drafted: added Phase 0 demo slice for the guide demo |
 | 2026-10-13 | Phase 0 built: schema, Express API, FastAPI stub, React app, seed data, root `npm run dev`. Location stored on `reports` (1-to-1). |
 | 2026-10-13 | Added the Phase 0 Demo Guide (start-up, accounts, seed data, screens, walkthrough, API, code map, limitations) |
+| 2026-11-27 | Phase 2 completed: `002_auth_hardening.sql`, Zod validation, `exifr` EXIF GPS check, 1–5 multi-photo upload, JWT refresh rotation, logout revocation, 5-attempt `423` lockout, rate limiting, `/verify-email`, `/forgot-password`, `/reset-password`, `/citizen/profile`, and `npm --prefix server test` (`phase2.test.js`). Documented deferred Cloudinary upload, deferred In-App Notifications, and dev-mode email/reset links vs future outbound SMTP/OTP delivery. |
+| 2026-11-27 | Phase 3 completed: `003_admin_settings.sql`, `leaflet.markercluster`, OpenStreetMap Nominatim search, weak-GPS warnings, SSE `/api/stats/stream`, `/stats` analytics dashboard, multi-filter Gov dashboard + `50 m` geo-fence + escalation, full `/admin/*` portal (review queue, user management, audit logs, live threshold settings), and `phase3.test.js` (`6/6` backend tests passing). |
