@@ -16,7 +16,10 @@ function Navbar() {
       <div className="container navbar-inner">
         <Link to={staff ? '/gov' : '/'} className="brand">
           <img src="/favicon.svg" alt="" width="28" height="28" />
-          <span>Smart Civic Roads <small>{staff ? 'Government Portal' : 'Vadodara'}</small></span>
+          <div>
+            <span>Smart Civic Roads</span>
+            <small>{staff ? 'Government Portal' : 'Vadodara'}</small>
+          </div>
         </Link>
         <nav className="nav-links">
           {staff ? (
@@ -50,9 +53,13 @@ export default function Layout() {
         <Outlet />
       </main>
       <footer className="footer">
-        <div className="container">
-          Smart Civic Road Issue Reporting &amp; AI-Based Pothole Verification System · Phase 0 demo ·{' '}
-          <Link to="/gov/login">Government login</Link>
+        <div className="container footer-inner">
+          <div>
+            <strong>Smart Civic Roads</strong> · Road Issue Reporting &amp; Pothole Verification for Vadodara
+          </div>
+          <div>
+            <Link to="/gov/login" className="link" style={{ fontSize: '0.86rem' }}>Government login</Link>
+          </div>
         </div>
       </footer>
     </>

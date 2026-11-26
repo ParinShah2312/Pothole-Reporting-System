@@ -1,6 +1,6 @@
 # Smart Civic Road Issue Reporting & AI-Based Pothole Verification System
 
-> **Status:** Phase 1 — Requirements & Design (in progress) · **Phase 0 demo built** (see [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) → *Phase 0 Demo Guide*)
+> **Status:** Phase 0 & 1 Completed (Full Demo Slice Live & Verified) · Next: Phase 2 (Production Services) & Phase 4 (YOLO Training)
 > **City:** Vadodara, Gujarat, India
 > **Team:** Parin Shah (23001091) · Ujjaval Rathod (23001113)
 
@@ -303,17 +303,19 @@ Each folder has its own `README.md` describing its subfolders. Copy each `.env.e
 ### Database (installed locally)
 | Item | Value |
 |---|---|
-| PostgreSQL | **17.11** (Windows service, port **5432**) — `C:\Program Files\PostgreSQL\17` |
-| PostGIS | **3.6.2** |
+| PostgreSQL | **16.x** (Windows service, port **5432**) — `C:\Program Files\PostgreSQL\16` |
+| PostGIS | **3.4.x Bundle** |
 | Database | `pothole_db` (PostGIS extension enabled) |
 | Dev user / password | `postgres` / `postgres` (**local dev only**; never use this for a hosted DB) |
 | Connection URL | `postgresql://postgres:postgres@localhost:5432/pothole_db` |
 
-`psql` is at `C:\Program Files\PostgreSQL\17\bin\psql.exe`. Add that `bin` folder to PATH to use `psql` directly.
+> **Windows PostGIS Note:** If `postgis-3.dll` fails to load with module not found, ensure `libwinpthread-1.dll` (from Git `C:\Program Files\Git\mingw64\bin\`) is copied to `C:\Program Files\PostgreSQL\16\bin\` and restart the `postgresql-x64-16` service.
+
+`psql` is at `C:\Program Files\PostgreSQL\16\bin\psql.exe`. Add that `bin` folder to PATH to use `psql` directly.
 We may move to a hosted PostGIS database (e.g. Neon or Supabase) later; only `DATABASE_URL` needs to change.
 
 ### Environment files
-Copy each `.env.example` to `.env` in `client/`, `server/` and `ai-service/` and fill in the values.
+Ensure `.env` exists in `server/`, `client/` and `ai-service/` (or copy from `.env.example`).
 
 ### First-time install
 ```bash
@@ -325,8 +327,8 @@ cd ai-service && python -m venv venv && venv\Scripts\pip install -r requirements
 
 ### Run everything
 ```bash
-npm run dev          # AI service :8000, API :5000, web app :5173. Open http://localhost:5173
-npm run db:reset     # DEV ONLY: wipe the database and reload the demo data
+npm run dev          # Starts AI service :8000, API :5000, web app :5173. Open http://localhost:5173
+npm run db:reset     # DEV ONLY: wipe the database, run migrations, and reload the demo data
 npm run sync:notion  # Syncs latest project status, modules, APIs & tests directly to Notion
 ```
 
