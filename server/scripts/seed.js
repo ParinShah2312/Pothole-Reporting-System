@@ -50,7 +50,7 @@ export async function seed() {
     for (const [name, zone] of DEPARTMENTS) {
       const { rows } = await db.query(
         `INSERT INTO departments (name, zone) VALUES ($1, $2)
-         ON CONFLICT (name) DO UPDATE SET zone = EXCLUDED.zone RETURNING id`,
+         ON CONFLICT (name) DO UPDATE SET zone = EXCLUDED.zone RETURNING dept_id AS id`,
         [name, zone],
       );
       deptIds[name] = rows[0].id;
@@ -61,7 +61,7 @@ export async function seed() {
       const hash = await bcrypt.hash(u.password, 10);
       const { rows } = await db.query(
         `INSERT INTO users (name, email, password_hash, role, department_id) VALUES ($1, $2, $3, $4, $5)
-         ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash RETURNING id`,
+         ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash RETURNING user_id AS id`,
         [u.name, u.email, hash, u.role, u.dept ? deptIds[u.dept] : null],
       );
       userIds[u.role] = rows[0].id;
@@ -87,13 +87,13 @@ export async function seed() {
          VALUES ($1, $2, ST_SetSRID(ST_MakePoint($4, $3), 4326)::geography, $5, 'gps',
                  $3, $4, 12, 0, $6, $7,
                  ${at(0.05)}, ${status === 'solved' ? at(96) : 'NULL'}, ${at(0)}, ${at(stepIndex * 24)})
-         RETURNING id`,
+         RETURNING report_id AS id`,
         [userIds.citizen, description, lat, lng, `${area}, Vadodara`, status, stepIndex >= 1 ? deptId : null],
       );
       const reportId = rows[0].id;
 
       const { rows: img } = await db.query(
-        `INSERT INTO report_images (report_id, url, uploaded_at) VALUES ($1, $2, ${at(0)}) RETURNING id`,
+        `INSERT INTO report_images (report_id, file_path, uploaded_at) VALUES ($1, $2, ${at(0)}) RETURNING image_id AS id`,
         [reportId, potholeUrl],
       );
       await db.query(
@@ -119,15 +119,15 @@ export async function seed() {
 
       if (stepIndex >= 1) {
         const { rows: rep } = await db.query(
-          `INSERT INTO repairs (report_id, department_id, assigned_by, assigned_at, started_at, completed_at)
+          `INSERT INTO repairs (report_id, dept_id, assigned_by, assigned_at, started_at, completed_at)
            VALUES ($1, $2, $3, ${at(24)}, ${stepIndex >= 2 ? at(48) : 'NULL'}, ${stepIndex >= 3 ? at(72) : 'NULL'})
-           RETURNING id`,
+           RETURNING repair_id AS id`,
           [reportId, deptId, govId],
         );
         if (status === 'solved') {
           const { rows: ci } = await db.query(
-            `INSERT INTO completion_images (repair_id, url, location, distance_m, uploaded_by, uploaded_at)
-             VALUES ($1, $2, ST_SetSRID(ST_MakePoint($4, $3), 4326)::geography, 6, $5, ${at(95)}) RETURNING id`,
+            `INSERT INTO completion_images (repair_id, file_path, location, distance_m, uploaded_by, uploaded_at)
+             VALUES ($1, $2, ST_SetSRID(ST_MakePoint($4, $3), 4326)::geography, 6, $5, ${at(95)}) RETURNING comp_img_id AS id`,
             [rep[0].id, repairedUrl, lat + 0.00004, lng, govId],
           );
           await db.query(

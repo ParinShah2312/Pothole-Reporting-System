@@ -1,14 +1,17 @@
 import { query } from '../config/db.js';
 
-const PUBLIC_COLUMNS = 'id, name, email, role, department_id, is_active, created_at';
+const PUBLIC_COLUMNS = 'user_id AS id, name, email, role, department_id, is_active, created_at';
 
 export async function findByEmail(email) {
-  const { rows } = await query('SELECT * FROM users WHERE email = $1', [email]);
+  const { rows } = await query(
+    'SELECT user_id AS id, name, email, password_hash, role, department_id, is_active, created_at FROM users WHERE email = $1',
+    [email],
+  );
   return rows[0] || null;
 }
 
 export async function findById(id) {
-  const { rows } = await query(`SELECT ${PUBLIC_COLUMNS} FROM users WHERE id = $1`, [id]);
+  const { rows } = await query(`SELECT ${PUBLIC_COLUMNS} FROM users WHERE user_id = $1`, [id]);
   return rows[0] || null;
 }
 

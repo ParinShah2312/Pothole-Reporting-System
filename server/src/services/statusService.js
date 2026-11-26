@@ -35,7 +35,7 @@ export const canTransition = (from, to) => TRANSITIONS[from]?.includes(to) ?? fa
  * `userId` null means the change was made by the system (AI).
  */
 export async function changeStatus(db, { reportId, to, userId = null, note = null }) {
-  const { rows } = await db.query('SELECT id, status, citizen_id FROM reports WHERE id = $1 FOR UPDATE', [reportId]);
+  const { rows } = await db.query('SELECT report_id AS id, status, citizen_id FROM reports WHERE report_id = $1 FOR UPDATE', [reportId]);
   const report = rows[0];
   if (!report) throw notFound('Report not found');
   if (!canTransition(report.status, to)) {
@@ -47,7 +47,7 @@ export async function changeStatus(db, { reportId, to, userId = null, note = nul
      SET status = $2::text, updated_at = now(),
          verified_at = CASE WHEN $2::text = 'active' THEN COALESCE(verified_at, now()) ELSE verified_at END,
          solved_at   = CASE WHEN $2::text = 'solved' THEN now() ELSE solved_at END
-     WHERE id = $1`,
+     WHERE report_id = $1`,
     [reportId, to],
   );
   await db.query(
